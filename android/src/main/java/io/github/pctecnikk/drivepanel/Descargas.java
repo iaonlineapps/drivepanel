@@ -50,6 +50,7 @@ final class Descargas {
         // Solo en memoria
         long lastBytes = -1, lastTime;
         double speed; // bytes/s, suavizada
+        long done, total = -1;
         int status;
         boolean notified;
         View row;
@@ -89,6 +90,10 @@ final class Descargas {
     private ScrollView scroll;
     private TextView header, minBtn, closeBtn;
     private boolean minimized, running;
+    private LinearLayout summary;
+    private TextView sumPct, sumFile, sumStats;
+    private GraficaVelocidad graph;
+    private boolean graphActive;
     private final boolean dark;
     private final int cBg, cText, cMuted, cLine;
 
@@ -141,6 +146,32 @@ final class Descargas {
         head.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { setMinimized(!minimized); } });
         panel.addView(head);
 
+        // Resumen tipo Windows 11: %, archivo actual, grafica de velocidad, tiempo y lo que queda
+        summary = new LinearLayout(a);
+        summary.setOrientation(LinearLayout.VERTICAL);
+        summary.setPadding(dp(16), 0, dp(16), dp(10));
+        sumPct = new TextView(a);
+        sumPct.setTextColor(cText);
+        sumPct.setTextSize(20);
+        sumPct.setTypeface(Typeface.DEFAULT_BOLD);
+        summary.addView(sumPct);
+        sumFile = new TextView(a);
+        sumFile.setTextColor(cMuted);
+        sumFile.setTextSize(13);
+        sumFile.setSingleLine(true);
+        sumFile.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        summary.addView(sumFile);
+        graph = new GraficaVelocidad(a, dark);
+        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72));
+        glp.setMargins(0, dp(8), 0, dp(6));
+        summary.addView(graph, glp);
+        sumStats = new TextView(a);
+        sumStats.setTextColor(cText);
+        sumStats.setTextSize(13);
+        summary.addView(sumStats);
+        summary.setVisibility(View.GONE);
+        panel.addView(summary);
+
         scroll = new ScrollView(a);
         list = new LinearLayout(a);
         list.setOrientation(LinearLayout.VERTICAL);
@@ -186,6 +217,7 @@ final class Descargas {
     private void setMinimized(boolean m) {
         minimized = m;
         scroll.setVisibility(m ? View.GONE : View.VISIBLE);
+        if (m) summary.setVisibility(View.GONE);
         minBtn.setRotation(m ? 180 : 0);
     }
 
@@ -327,6 +359,8 @@ final class Descargas {
                 }
                 it.lastBytes = done;
                 it.lastTime = now;
+                it.done = done;
+                it.total = total;
                 if (st != it.status) changed = true;
                 it.status = st;
                 if (isActive(st)) active = true;
@@ -343,6 +377,7 @@ final class Descargas {
             }
         }
         if (changed) save();
+        updateSummary(active);
         return active;
     }
 
@@ -436,6 +471,42 @@ final class Descargas {
         } catch (Exception e) {
             Toast.makeText(a, "No se encuentra el archivo. Mira en la carpeta Descargas.", Toast.LENGTH_LONG).show();
         }
+    }
+
+    /** Resumen de todas las descargas en marcha, con la grafica de velocidad. */
+    private void updateSummary(boolean active) {
+        if (!active) {
+            summary.setVisibility(View.GONE);
+            if (graphActive) { graph.reset(); graphActive = false; }
+            return;
+        }
+        long done = 0, total = 0, left = 0;
+        boolean allKnown = true;
+        double speed = 0;
+        int count = 0;
+        String current = null;
+        for (Item it : items) {
+            if (!isActive(it.status)) continue;
+            count++;
+            speed += it.speed;
+            done += Math.max(0, it.done);
+            if (it.total > 0) { total += it.total; left += it.total - Math.max(0, it.done); }
+            else allKnown = false;
+            if (current == null && it.status == DownloadManager.STATUS_RUNNING) current = it.name;
+        }
+        if (current == null) for (Item it : items) if (isActive(it.status)) { current = it.name; break; }
+        float frac = allKnown && total > 0 ? (float) done / total : 0;
+        graphActive = true;
+        graph.add(speed, frac);
+        sumPct.setText(allKnown && total > 0 ? (int) (frac * 100) + " % completado" : size(done) + " descargados");
+        sumFile.setText("Descargando: " + current);
+        StringBuilder b = new StringBuilder();
+        b.append("Velocidad: ").append(speed > 0 ? size((long) speed) + "/s" : "—");
+        if (allKnown && speed > 0 && left > 0) b.append("   ·   Quedan ").append(time((long) (left / speed)));
+        b.append("\n").append(count == 1 ? "1 elemento restante" : count + " elementos restantes");
+        if (allKnown && left > 0) b.append(" (").append(size(left)).append(")");
+        sumStats.setText(b.toString());
+        if (!minimized) summary.setVisibility(View.VISIBLE);
     }
 
     /** Cabecera y visibilidad del panel. */
