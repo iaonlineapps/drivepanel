@@ -3,7 +3,20 @@ FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DRIVE_DATA=/data
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# En Raspberry Pi de 32 bits (armv7) no hay Pillow ya compilado: se compila aquí
+# y luego se quitan las herramientas para que la imagen siga siendo pequeña.
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm" ]; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends build-essential libjpeg62-turbo-dev zlib1g-dev \
+        libwebp-dev libfreetype-dev && \
+      pip install --no-cache-dir -r requirements.txt && \
+      apt-get purge -y build-essential libjpeg62-turbo-dev zlib1g-dev libwebp-dev libfreetype-dev && \
+      apt-get install -y --no-install-recommends libjpeg62-turbo zlib1g libwebp7 libwebpmux3 libwebpdemux2 libfreetype6 && \
+      apt-get autoremove -y && rm -rf /var/lib/apt/lists/* ; \
+    else \
+      pip install --no-cache-dir -r requirements.txt ; \
+    fi
 COPY app ./app
 COPY entrypoint.sh /entrypoint.sh
 # el contenedor corre como usuario normal: el codigo tiene que ser legible

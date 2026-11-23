@@ -49,6 +49,8 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 ## 1. Requisitos
 
 - Una Raspberry Pi 4/5 (o cualquier equipo Linux) con **Docker** y **Docker Compose**.
+- **También funciona en una Raspberry Pi 3**, pero tiene poca potencia: las miniaturas,
+  ver fotos y las subidas grandes irán lentas. Para un uso diario cómodo, mejor una Pi 4 o 5.
   Si no lo tienes: `curl -fsSL https://get.docker.com | sh` y luego
   `sudo usermod -aG docker $USER` (cierra la sesión y vuelve a entrar).
 - Recomendado: un **disco externo** montado para guardar los archivos, en vez de la

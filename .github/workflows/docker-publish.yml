@@ -1,5 +1,5 @@
 # Publica la imagen Docker de DrivePanel en GitHub (ghcr.io/pctecnikk/drivepanel)
-# para PC (amd64) y Raspberry Pi (arm64). Se lanza al crear una versión (etiqueta v1.2.3)
+# para PC (amd64), Raspberry Pi 4/5 (arm64) y Raspberry Pi 3 de 32 bits (arm/v7). Se lanza al crear una versión (etiqueta v1.2.3)
 # o a mano desde la pestaña Actions (Run workflow) escribiendo el número de versión.
 name: Publicar imagen Docker
 
@@ -11,7 +11,7 @@ on:
       version:
         description: "Versión a publicar (por ejemplo 1.0.0)"
         required: true
-        default: "1.0.0"
+        default: "1.0.1"
 
 permissions:
   contents: read
@@ -50,7 +50,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
