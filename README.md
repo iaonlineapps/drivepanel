@@ -127,6 +127,11 @@ Tus archivos y usuarios no se tocan: están en `DATA_DIR`, no en la carpeta de l
 
 ## 5. App para Android (APK)
 
+> ⚠️ **Antes de nada: la app necesita tu propio servidor DrivePanel ya instalado y funcionando**
+> (en una Raspberry Pi o cualquier Linux con Docker). La app solo es la ventana para entrar en
+> él desde el móvil: sin servidor no hace nada. Si aún no lo tienes, sigue primero los pasos de
+> **[Instalar](#2-instalar)** y comprueba que entras desde el navegador.
+
 Además de instalarla desde el navegador, hay una **app para Android** que se descarga desde
 GitHub. Es la misma web de DrivePanel dentro de una app, así que siempre está al día con tu
 servidor.
