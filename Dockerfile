@@ -5,6 +5,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+# el contenedor corre como usuario normal: el codigo tiene que ser legible
+# aunque se haya copiado con permisos restrictivos (por ejemplo desde Windows)
+RUN chmod -R a+rX /app
 
 EXPOSE 8090
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
