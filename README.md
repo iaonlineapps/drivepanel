@@ -1,5 +1,7 @@
 # DrivePanel
 
+![DrivePanel: tu propio Google Drive en casa](docs/promo/drivepanel-enlace-1200x630.png)
+
 Tu propio "Google Drive" en casa, pensado para una Raspberry Pi (funciona en cualquier
 Linux con Docker). Ligero (unos 40 MB de RAM), en español, con modo claro/oscuro y
 WebDAV para que el móvil suba las fotos solo.
