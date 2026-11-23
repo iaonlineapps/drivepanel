@@ -18,7 +18,7 @@ WebDAV para que el móvil suba las fotos solo.
 - **Compartir** con otro usuario o con un enlace público que puede caducar.
 - **Usuarios:** registro con aprobación del administrador, cuotas, foto de perfil.
 - **WebDAV** por usuario en `/dav/`, para que el móvil suba las fotos solo.
-- Se puede **instalar en el móvil** como app, y tiene modo claro y oscuro.
+- Se puede **instalar en el móvil** como app (desde el navegador o con la **APK para Android**), y tiene modo claro y oscuro.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
@@ -123,7 +123,58 @@ docker compose up -d --build
 
 Tus archivos y usuarios no se tocan: están en `DATA_DIR`, no en la carpeta de la app.
 
-## 5. Subida automática desde el móvil (WebDAV)
+## 5. App para Android (APK)
+
+Además de instalarla desde el navegador, hay una **app para Android** que se descarga desde
+GitHub. Es la misma web de DrivePanel dentro de una app, así que siempre está al día con tu
+servidor.
+
+**Instalarla en el móvil:**
+
+1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/pctecnikk/drivepanel/releases/latest)** y toca
+   **`DrivePanel.apk`**.
+2. Al abrir el archivo, Android pedirá permiso para **instalar apps de origen desconocido**
+   (el navegador o la app *Archivos*). Dale permiso y toca **Instalar**.
+   Si aparece un aviso de *Play Protect*, toca **Más detalles → Instalar de todas formas**:
+   sale porque la app no viene de Google Play.
+3. Abre **DrivePanel** y escribe la **dirección de tu servidor**, la misma que usas en el
+   navegador (por ejemplo `192.168.1.50:8090`). La app comprueba que es un DrivePanel y la
+   recuerda.
+
+> **Ojo, en casa o fuera de casa:** la dirección con la IP de casa (`192.168.…:8090`) **solo
+> funciona conectado a la wifi de casa**. Con datos móviles o en otra wifi hay que poner la
+> dirección pública de tu servidor (por ejemplo `https://nube.midominio.com`), si la tienes.
+> Puedes cambiarla cuando quieras con **Cambiar servidor**.
+
+**Qué hace:**
+
+- Entrar con tu usuario, ver y abrir tus archivos, fotos, vídeos y PDF.
+- **Subir** archivos y fotos desde el móvil (puedes elegir varios a la vez).
+- **Descargar** archivos y carpetas (.zip): se guardan en la carpeta **Descargas** del móvil.
+- **Cambiar de servidor:** mantén pulsado el icono de DrivePanel y elige **Cambiar servidor**,
+  o pulsa **Atrás** en la pantalla principal de la app.
+- Si el servidor no responde, la app te deja **reintentar** o cambiar la dirección.
+
+Necesita Android 7 o más nuevo. En la app de Android
+no se puede elegir una **carpeta entera** para subir (Android no lo permite); para eso usa el
+ordenador, o la subida automática por WebDAV.
+
+<details>
+<summary>Compilar la APK tú mismo</summary>
+
+El código está en la carpeta [`android/`](android/). En Ubuntu o Debian:
+
+```bash
+sudo apt install default-jdk aapt apksigner zipalign dalvik-exchange
+./android/build.sh
+```
+
+La APK queda en `android/build/`. Sin más opciones se firma con una clave de prueba; para
+firmarla con la tuya usa `KEYSTORE=... KS_PASS=... KEY_ALIAS=... ./android/build.sh`.
+
+</details>
+
+## 6. Subida automática desde el móvil (WebDAV)
 
 Cada usuario tiene su "Mi unidad" disponible por WebDAV. Dentro de la app lo tienes en
 el menú de usuario → **Conectar el móvil (WebDAV)**.
@@ -149,7 +200,7 @@ La cuota también se aplica a lo que llega por WebDAV.
 Otras apps que funcionan igual: PhotoSync (Android e iPhone), Solid Explorer o el
 explorador de Windows ("Conectar a unidad de red" → `http://IP-DE-TU-PI:8090/dav/`).
 
-## 6. Comandos útiles
+## 7. Comandos útiles
 
 ```bash
 docker compose ps                 # estado
@@ -161,7 +212,7 @@ docker compose down               # parar
 **Copia de seguridad:** copia la carpeta `DATA_DIR` entera. Si solo quieres guardar
 usuarios y compartidos, basta con `DATA_DIR/config/`.
 
-## 7. Seguridad
+## 8. Seguridad
 
 - La app usa **HTTP sin cifrar**. No abras el puerto 8090 en el router.
 - Para entrar desde fuera de casa usa una VPN (por ejemplo Tailscale o WireGuard) o un
@@ -175,7 +226,7 @@ usuarios y compartidos, basta con `DATA_DIR/config/`.
   se muestran como texto o se descargan, para que un usuario no pueda atacar a otro
   compartiéndole un archivo.
 
-## 8. Licencia
+## 9. Licencia
 
 DrivePanel se publica con la licencia
 [PolyForm Noncommercial 1.0.0](LICENSE.md). En resumen (el texto que vale es el de
