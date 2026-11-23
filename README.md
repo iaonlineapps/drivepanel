@@ -131,8 +131,8 @@ servidor.
 
 **Instalarla en el móvil:**
 
-1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/pctecnikk/drivepanel/releases/latest)** y toca
-   **`DrivePanel.apk`**.
+1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/pctecnikk/drivepanel/releases)**, busca la más nueva
+   que se llama **App Android** y toca **`DrivePanel.apk`**.
 2. Al abrir el archivo, Android pedirá permiso para **instalar apps de origen desconocido**
    (el navegador o la app *Archivos*). Dale permiso y toca **Instalar**.
    Si aparece un aviso de *Play Protect*, toca **Más detalles → Instalar de todas formas**:
@@ -154,6 +154,11 @@ servidor.
 - **Cambiar de servidor:** mantén pulsado el icono de DrivePanel y elige **Cambiar servidor**,
   o pulsa **Atrás** en la pantalla principal de la app.
 - Si el servidor no responde, la app te deja **reintentar** o cambiar la dirección.
+- **Versión y novedades:** pulsa **Atrás** en la pantalla principal y elige **Novedades**, o
+  mantén pulsado el icono. La lista completa está en
+  [`android/src/main/res/raw/novedades.md`](android/src/main/res/raw/novedades.md).
+- **Actualizaciones:** la app mira en GitHub si hay una versión nueva y te avisa. Al descargarla
+  se instala encima de la que tienes, sin perder nada.
 
 Necesita Android 7 o más nuevo. En la app de Android
 no se puede elegir una **carpeta entera** para subir (Android no lo permite); para eso usa el
@@ -171,6 +176,12 @@ sudo apt install default-jdk aapt apksigner zipalign dalvik-exchange
 
 La APK queda en `android/build/`. Sin más opciones se firma con una clave de prueba; para
 firmarla con la tuya usa `KEYSTORE=... KS_PASS=... KEY_ALIAS=... ./android/build.sh`.
+
+**Sacar una versión nueva:** sube `versionCode` y `versionName` en
+`android/src/main/AndroidManifest.xml`, apunta las novedades arriba del todo en
+`android/src/main/res/raw/novedades.md`, compila con tu clave y crea una Release en el repo
+público con la etiqueta `android-vX.Y` (por ejemplo `android-v1.2`) y el archivo
+`DrivePanel.apk`. La app avisa sola a quien tenga una versión anterior.
 
 </details>
 

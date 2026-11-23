@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
     private static final String PREFS = "drivepanel";
     private static final String KEY_URL = "server_url";
     private static final String ACTION_CHANGE_SERVER = "io.github.pctecnikk.drivepanel.CHANGE_SERVER";
+    private static final String ACTION_NOVEDADES = "io.github.pctecnikk.drivepanel.NOVEDADES";
     private static final int REQ_FILES = 1;
     private static final int REQ_STORAGE = 2;
     private static final int BLUE = 0xFF1A73E8;
@@ -91,6 +92,8 @@ public class MainActivity extends Activity {
         } else {
             showWeb(url, state);
         }
+        if (state == null) Novedades.showIfUpdated(this, prefs, url == null);
+        if (getIntent() != null && ACTION_NOVEDADES.equals(getIntent().getAction())) Novedades.show(this, prefs, null);
     }
 
     private static boolean isChangeServer(Intent i) {
@@ -101,6 +104,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (isChangeServer(intent)) showSetup(prefs.getString(KEY_URL, null), null);
+        else if (ACTION_NOVEDADES.equals(intent.getAction())) Novedades.show(this, prefs, null);
     }
 
     // ------------------------------------------------------------------ Pantalla del servidor
@@ -219,6 +223,15 @@ public class MainActivity extends Activity {
         help.setGravity(Gravity.CENTER);
         box.addView(help);
 
+        TextView ver = new TextView(this);
+        ver.setText("\nVersión " + Novedades.version(this) + " · Ver novedades");
+        ver.setTextSize(13);
+        ver.setTextColor(BLUE);
+        ver.setGravity(Gravity.CENTER);
+        ver.setPadding(0, dp(8), 0, dp(8));
+        ver.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { Novedades.show(MainActivity.this, prefs, null); } });
+        box.addView(ver);
+
         root.addView(scroll);
     }
 
@@ -301,7 +314,7 @@ public class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setSupportZoom(false);
-        s.setUserAgentString(s.getUserAgentString() + " DrivePanelAndroid/1.1");
+        s.setUserAgentString(s.getUserAgentString() + " DrivePanelAndroid");
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
@@ -379,6 +392,7 @@ public class MainActivity extends Activity {
             startDownload(d);
         } });
 
+        Novedades.check(this, prefs, false);
         if (state != null && web.restoreState(state) != null) return;
         web.loadUrl(base + "/");
     }
@@ -507,9 +521,10 @@ public class MainActivity extends Activity {
         }
         new AlertDialog.Builder(this)
                 .setTitle("DrivePanel")
-                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar"}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
+                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades (versión " + Novedades.version(this) + ")"}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
                     if (which == 0) finish();
                     else if (which == 1) showSetup(prefs.getString(KEY_URL, null), null);
+                    else if (which == 3) Novedades.show(MainActivity.this, prefs, null);
                     else if (web != null) web.reload();
                 } })
                 .setNegativeButton("Cancelar", null)

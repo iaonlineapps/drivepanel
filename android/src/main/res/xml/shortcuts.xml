@@ -10,4 +10,14 @@
             android:targetPackage="io.github.pctecnikk.drivepanel"
             android:targetClass="io.github.pctecnikk.drivepanel.MainActivity" />
     </shortcut>
+    <shortcut
+        android:shortcutId="novedades"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_novedades">
+        <intent
+            android:action="io.github.pctecnikk.drivepanel.NOVEDADES"
+            android:targetPackage="io.github.pctecnikk.drivepanel"
+            android:targetClass="io.github.pctecnikk.drivepanel.MainActivity" />
+    </shortcut>
 </shortcuts>
