@@ -265,7 +265,7 @@ public class MainActivity extends Activity {
         TextView info = new TextView(this);
         info.setText("Escribe la dirección de tu DrivePanel, la misma que pones en el navegador.\n\n"
                 + "• En casa (con la wifi de casa): la IP de tu servidor y el puerto 8090, "
-                + "por ejemplo 192.168.1.50:8090\n\n"
+                + "por ejemplo 192.168.1.x:8090\n\n"
                 + "• Fuera de casa (datos móviles u otra wifi): la IP de casa no funciona. "
                 + "Pon tu dirección pública si la tienes, por ejemplo https://nube.midominio.com");
         info.setTextSize(15);
