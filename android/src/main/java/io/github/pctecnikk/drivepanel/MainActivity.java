@@ -160,6 +160,24 @@ public class MainActivity extends Activity {
         info.setPadding(0, 0, 0, dp(20));
         box.addView(info);
 
+        TextView need = new TextView(this);
+        need.setText("Importante: esta app necesita tu propio servidor DrivePanel ya instalado "
+                + "(en una Raspberry Pi o un ordenador con Linux y Docker). Sin servidor no funciona.\n"
+                + "¿Aún no lo tienes? Toca aquí para ver cómo instalarlo.");
+        need.setTextSize(14);
+        need.setTextColor(0xFF7A4F01);
+        need.setPadding(dp(14), dp(12), dp(14), dp(12));
+        android.graphics.drawable.GradientDrawable nbg = new android.graphics.drawable.GradientDrawable();
+        nbg.setColor(0xFFFEF7E0);
+        nbg.setCornerRadius(dp(10));
+        need.setBackground(nbg);
+        need.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
+            Novedades.open(MainActivity.this, "https://github.com/pctecnikk/drivepanel#2-instalar");
+        } });
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.setMargins(0, 0, 0, dp(18));
+        box.addView(need, nlp);
+
         final EditText input = new EditText(this);
         input.setHint("Dirección del servidor");
         input.setSingleLine(true);

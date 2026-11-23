@@ -98,6 +98,7 @@ final class Novedades {
         SpannableStringBuilder b = new SpannableStringBuilder();
         for (String line : md.split("\n")) {
             String l = line.trim();
+            if (l.startsWith(">")) l = l.substring(1).trim();
             if (l.startsWith("# ")) continue; // Titulo del archivo
             if (l.startsWith("<!--")) continue;
             if (l.startsWith("## ")) {
