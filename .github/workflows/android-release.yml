@@ -1,0 +1,38 @@
+# Publica la app de Android como Release al subir una etiqueta android-vX.Y
+# (por ejemplo android-v1.6). Usa la APK ya firmada de android/dist/DrivePanel.apk,
+# asi la clave de firma nunca tiene que estar en GitHub.
+name: Publicar app Android
+
+on:
+  push:
+    tags: ["android-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Crear la Release con la APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${GITHUB_REF_NAME#android-v}"
+          grep -q "versionName=\"$V\"" android/src/main/AndroidManifest.xml \
+            || { echo "La version $V no coincide con android/src/main/AndroidManifest.xml"; exit 1; }
+          {
+            echo "App de DrivePanel para Android. Descarga **DrivePanel.apk** aquí abajo (en *Assets*), ábrela en el móvil y toca **Instalar**. Si Android pregunta, permite instalar apps de este origen."
+            echo
+            echo "Si ya tienes una versión anterior, se instala encima sin perder nada."
+            echo
+            echo "## Novedades de la $V"
+            awk -v v="## Versión $V" '$0==v{f=1;next} /^## /{f=0} f' android/src/main/res/raw/novedades.md
+            echo
+            echo "Necesita Android 7 o más nuevo. La primera vez pide la dirección de tu servidor (en casa, por ejemplo \`192.168.1.50:8090\`; fuera de casa, tu dirección pública)."
+          } > notas.md
+          cat notas.md
+          gh release create "$GITHUB_REF_NAME" android/dist/DrivePanel.apk \
+            --title "App Android $V" --notes-file notas.md
