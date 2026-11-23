@@ -21,6 +21,9 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
       pip install --no-cache-dir -r requirements.txt ; \
     fi
 COPY app ./app
+# el contenedor corre como usuario normal: el codigo tiene que ser legible
+# aunque se haya copiado con permisos restrictivos (por ejemplo desde Windows)
+RUN chmod -R a+rX /app
 COPY entrypoint.sh /entrypoint.sh
 # el contenedor corre como usuario normal: el codigo tiene que ser legible
 # aunque se haya copiado con permisos restrictivos (por ejemplo desde Windows)
