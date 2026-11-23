@@ -848,8 +848,39 @@ def share_delete(sid: int, u=Depends(current_user)):
     return {"ok": True}
 
 
+# --- enlace publico abierto en el navegador del movil: elegir app o navegador ----------
+_APP_PKG = "io.github.pctecnikk.drivepanel"
+_APP_RELEASES = "https://github.com/pctecnikk/drivepanel/releases"
+
+
+def _wants_choice(request: Request) -> bool:
+    ua = request.headers.get("user-agent", "")
+    return ("Android" in ua and "Mozilla" in ua and "DrivePanelAndroid" not in ua
+            and "text/html" in request.headers.get("accept", ""))
+
+
+def _choice_page(url: str, name: str, size: str) -> HTMLResponse:
+    from html import escape
+    from urllib.parse import quote as q
+    app = (f"intent://open?url={q(url, safe='')}&name={q(name, safe='')}#Intent;scheme=drivepanel;"
+           f"package={_APP_PKG};S.browser_fallback_url={q(_APP_RELEASES, safe='')};end")
+    here = url + ("&" if "?" in url else "?") + "dl=1"
+    return HTMLResponse(f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(name)} · DrivePanel</title>
+<style>body{{font-family:system-ui,sans-serif;margin:0;background:#f8fafd;color:#1f1f1f;display:flex;min-height:100vh;align-items:center;justify-content:center}}
+.c{{background:#fff;border-radius:18px;padding:28px 22px;max-width:380px;width:calc(100% - 32px);box-shadow:0 2px 10px #0002;text-align:center}}
+h1{{font-size:19px;margin:6px 0 4px;word-break:break-word}}p{{color:#5f6368;margin:0 0 22px}}
+a.b{{display:block;padding:15px;border-radius:12px;text-decoration:none;font-weight:600;margin-top:12px}}
+.p{{background:#1a73e8;color:#fff}}.s{{background:#e8f0fe;color:#1a73e8}}small{{display:block;color:#5f6368;margin-top:18px}}
+@media(prefers-color-scheme:dark){{body{{background:#1f1f1f;color:#e3e3e3}}.c{{background:#2d2f31}}.s{{background:#394457;color:#a8c7fa}}p,small{{color:#a8abaf}}}}</style></head>
+<body><div class="c"><div style="font-size:42px">{'📁' if name.endswith('.zip') else '📄'}</div><h1>{escape(name)}</h1><p>{escape(size)}</p>
+<a class="b p" href="{escape(app)}">Abrir en la app DrivePanel</a>
+<a class="b s" href="{escape(here)}">Descargar aquí (navegador)</a>
+<small>Si no tienes la app, el primer botón te lleva a descargarla.</small></div></body></html>""")
+
+
 @app.get("/s/{token}")
-def public_link(token: str, inline: int = 0):
+def public_link(request: Request, token: str, inline: int = 0, dl: int = 0):
     s = db.q1("SELECT * FROM shares WHERE token=? AND target IS NULL", token)
     if s and s["expires"] and s["expires"] < time.time():
         db.run("DELETE FROM shares WHERE id=?", s["id"])
@@ -857,6 +888,10 @@ def public_link(token: str, inline: int = 0):
     if not s:
         return HTMLResponse("<h2 style='font-family:sans-serif'>Enlace no valido o caducado</h2>", 404)
     p = safe_path(user_root(s["owner"]), s["path"])
+    if not inline and not dl and (p.is_file() or p.is_dir()) and _wants_choice(request):
+        name = p.name if p.is_file() else p.name + ".zip"
+        size = f"{p.stat().st_size / 1048576:.1f} MB".replace(".", ",") if p.is_file() else "Carpeta (se descarga en .zip)"
+        return _choice_page(str(request.url.replace(query="")), name, size)
     if p.is_file():
         return send_file(p, not inline)
     if p.is_dir():

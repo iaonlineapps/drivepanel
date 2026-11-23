@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.pctecnikk.drivepanel"
-    android:versionCode="8"
-    android:versionName="1.6.1">
+    android:versionCode="9"
+    android:versionName="1.6.2">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
 
@@ -30,6 +30,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- "Abrir en la app DrivePanel" desde la web en el navegador del movil -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="drivepanel" />
             </intent-filter>
             <!-- Sale en el menu Compartir de Android para subir fotos y archivos -->
             <intent-filter android:label="Subir a DrivePanel">

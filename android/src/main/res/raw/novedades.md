@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.2
+- Si abres DrivePanel en el navegador del móvil (por ejemplo desde un enlace de Telegram), al tocar Descargar puedes elegir «Abrir en la app DrivePanel» y se descarga en la app, con su panel de descargas.
+
 ## Versión 1.6.1
 - DrivePanel sale en el menú «Compartir» de Android: comparte fotos o archivos desde la galería, WhatsApp o cualquier app, elige la carpeta y se suben con el panel de subidas.
 - Al abrir la app entras directamente en el Panel de actividad. Si prefieres Mi unidad, pulsa Atrás y elige «Pantalla al abrir».

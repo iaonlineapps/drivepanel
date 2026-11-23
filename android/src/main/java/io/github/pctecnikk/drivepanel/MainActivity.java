@@ -107,6 +107,7 @@ public class MainActivity extends Activity {
         if (state == null) Novedades.showIfUpdated(this, prefs, url == null);
         if (getIntent() != null && ACTION_NOVEDADES.equals(getIntent().getAction())) Novedades.show(this, prefs, null);
         if (state == null && Compartir.isShare(getIntent())) handleShare(getIntent());
+        if (state == null && isAppLink(getIntent())) handleAppLink(getIntent());
     }
 
     private static boolean isChangeServer(Intent i) {
@@ -119,6 +120,47 @@ public class MainActivity extends Activity {
         if (isChangeServer(intent)) showSetup(prefs.getString(KEY_URL, null), null);
         else if (ACTION_NOVEDADES.equals(intent.getAction())) Novedades.show(this, prefs, null);
         else if (Compartir.isShare(intent)) handleShare(intent);
+        else if (isAppLink(intent)) handleAppLink(intent);
+    }
+
+    // ------------------------------------------------------------------ Enlaces "Abrir en la app"
+
+    /** drivepanel://open?url=...&name=... (lo usa el boton "Abrir en la app DrivePanel" de la web). */
+    private static boolean isAppLink(Intent i) {
+        return i != null && Intent.ACTION_VIEW.equals(i.getAction()) && i.getData() != null
+                && "drivepanel".equals(i.getData().getScheme());
+    }
+
+    private void handleAppLink(Intent intent) {
+        Uri d = intent.getData();
+        String url = d.getQueryParameter("url");
+        String name = d.getQueryParameter("name");
+        if (url == null || !url.matches("(?i)^https?://.+")) {
+            toast("Enlace no válido");
+            return;
+        }
+        Uri u = Uri.parse(url);
+        String saved = prefs.getString(KEY_URL, null);
+        String origin = u.getScheme() + "://" + u.getEncodedAuthority();
+        if (saved == null) {
+            // Primera vez y sin servidor: se usa el de este enlace
+            prefs.edit().putString(KEY_URL, origin).apply();
+            saved = origin;
+        }
+        if (web == null) showWeb(saved, null);
+        String path = u.getPath() == null ? "" : u.getPath();
+        boolean isDownload = path.startsWith("/s/") || path.startsWith("/api/zip")
+                || (path.startsWith("/api/file") && "1".equals(u.getQueryParameter("download")));
+        if (!isDownload) {
+            web.loadUrl(url);
+            return;
+        }
+        if (path.startsWith("/s/") && u.getQueryParameter("dl") == null) url = url + (url.contains("?") ? "&" : "?") + "dl=1";
+        PendingDownload p = new PendingDownload();
+        p.url = url;
+        p.userAgent = web.getSettings().getUserAgentString();
+        p.disposition = name != null && !name.isEmpty() ? "attachment; filename*=UTF-8''" + Uri.encode(name) : null;
+        startDownload(p);
     }
 
     // ------------------------------------------------------------------ Compartir con DrivePanel
@@ -329,6 +371,7 @@ public class MainActivity extends Activity {
         box.addView(ver);
 
         root.addView(scroll);
+        if (descargas != null) descargas.attach(root);
     }
 
     /** Convierte lo que escribe la persona en una direccion completa, o null si no vale. */
