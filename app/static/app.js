@@ -49,6 +49,12 @@ const P = {
   doc:'M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z',
   file:'M6 2c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6H6zm7 7V3.5L18.5 9H13z',
   sheet:'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 8h-8v8H9v-8H5V9h4V5h2v4h8v2z',
+  chart:'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
+  bolt:'M7 2v11h3v9l7-12h-4l4-8z',
+  refresh:'M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
+  info:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
+  storage:'M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z',
+  cloudUp:'M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z',
 };
 P.text = P.doc; P.slides = P.sheet;
 const svg = n => `<svg viewBox="0 0 24 24"><path d="${P[n] || P.file}"/></svg>`;
@@ -146,13 +152,14 @@ window.addEventListener('hashchange', route);
 function route() {
   if (!S.me) return;
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
-  const view = ['drive','shared','recent','photos','trash','users'].includes(parts[0]) ? parts[0] : 'drive';
+  const view = ['drive','shared','recent','photos','trash','users','panel'].includes(parts[0]) ? parts[0] : 'drive';
   if (view === 'users' && !S.me.is_admin) return go('drive');
   S.view = view; S.share = null; S.path = '';
   if (view === 'drive') S.path = parts.slice(1).filter(Boolean).join('/');
   if (view === 'shared' && parts[1]) { S.share = +parts[1]; S.path = parts.slice(2).filter(Boolean).join('/'); }
   S.q = ''; $('#search').value = '';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+  $('#gridBtn').classList.toggle('hidden', view === 'panel'); $('#listBtn').classList.toggle('hidden', view === 'panel');
   closeSidebar(); load();
 }
 
@@ -167,6 +174,7 @@ async function load() {
     else if (S.view === 'photos') data = await api('/api/photos');
     else if (S.view === 'trash') data = await api('/api/trash');
     else if (S.view === 'users') return renderUsers();
+    else if (S.view === 'panel') return renderPanel();
     else if (S.view === 'shared') {
       if (S.share) data = await api(`/api/list?path=${enc(S.path)}&share=${S.share}`);
       else { const r = await api('/api/shares'); S.sharesData = r; data = {items: r.withme}; }
@@ -179,7 +187,7 @@ async function load() {
 /* ---------- pintar ---------- */
 function crumbs() {
   const el = $('#crumbs');
-  const label = {drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios'}[S.view];
+  const label = {drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad'}[S.view];
   if (S.q) { el.innerHTML = `<button>Resultados de «${esc(S.q)}»</button>`; return; }
   let html = `<button data-p="" data-root="1">${label}</button>`;
   if (S.view === 'shared' && S.share) {
@@ -359,6 +367,7 @@ const actions = {
   restore: async () => { await api('/api/trash/restore', {json: {ids: selItems().map(i => i.id)}}); toast('Restaurado'); load(); },
   purge: async () => { if (await confirmDialog('Eliminar para siempre', 'Estos elementos se borrarán definitivamente. No se puede deshacer.', 'Eliminar')) { await api('/api/trash/delete', {json: {ids: selItems().map(i => i.id)}}); load(); loadStats(); } },
   clear: () => { S.sel.clear(); updateSel(); },
+  props: () => propsDialog(selItems()),
 };
 $('#selBar').addEventListener('click', e => { const b = e.target.closest('[data-sel]'); if (b) actions[b.dataset.sel](); });
 $('#emptyTrash').onclick = async () => { if (await confirmDialog('Vaciar papelera', 'Se borrará todo lo que hay en la papelera para siempre.', 'Vaciar')) { await api('/api/trash/empty', {method:'POST'}); load(); loadStats(); } };
@@ -371,6 +380,7 @@ function openCtx(anchor, it) {
   if (own && !multi) opts.push(['share', 'share', 'Compartir'], ['rename', 'edit', 'Cambiar nombre']);
   if (own) opts.push(['move', 'move', 'Mover a…']);
   if ((S.view === 'recent' || S.view === 'photos' || S.q) && !multi) opts.push(['location', 'drive', 'Mostrar ubicación']);
+  if (!trash) opts.push(['props', 'info', 'Propiedades']);
   if (trash) opts.push(['restore', 'restore', 'Restaurar'], ['purge', 'forever', 'Eliminar para siempre']);
   if (own) opts.push(['-'], ['delete', 'trash', 'Mover a la papelera']);
   if (S.view === 'shared' && !S.share) opts.push(['delete', 'close', 'Quitar de compartidos']);
@@ -384,6 +394,7 @@ function openCtx(anchor, it) {
   m.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; m.classList.add('hidden'); actions[b.dataset.a](it); };
 }
 document.addEventListener('click', e => {
+  if (!e.target.closest('.quick-wrap')) $('#quickMenu').classList.add('hidden');
   if (!e.target.closest('#ctx') && !e.target.closest('.more')) $('#ctx').classList.add('hidden');
   if (!e.target.closest('.new-wrap')) $('#newMenu').classList.add('hidden');
   if (!e.target.closest('.user-wrap')) $('#userMenu').classList.add('hidden');
@@ -512,7 +523,34 @@ $('#vClose').onclick = closeViewer; $('#vPrev').onclick = () => stepViewer(-1); 
    grande (o pasando por un proxy inverso) no se corta. Los que fallan se quedan en la lista con
    su motivo y se pueden reintentar; la lista de fallidos se guarda tambien en el navegador. */
 const queue = []; let active = 0, refreshT;
-const UP = {total: 0, done: 0, skipped: 0, failed: [], bytesTotal: 0, bytesDone: 0};
+const UP = {total: 0, done: 0, skipped: 0, failed: [], bytesTotal: 0, bytesDone: 0, sent: 0};
+
+/* velocidad de subida: media de los ultimos 5 segundos de bytes realmente enviados */
+const fmtRate = b => fmtSize(b) + '/s';
+function fmtEta(s) {
+  if (!isFinite(s) || s <= 0) return '';
+  s = Math.round(s);
+  if (s < 60) return `quedan ${s} s`;
+  if (s < 3600) return `quedan ${Math.floor(s / 60)} min ${s % 60 ? (s % 60) + ' s' : ''}`.trim();
+  return `quedan ${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
+}
+function rateOf(samples, now, value) {
+  samples.push([now, value]);
+  while (samples.length > 2 && now - samples[0][0] > 5000) samples.shift();
+  const [t0, v0] = samples[0], dt = (now - t0) / 1000;
+  return dt >= 0.8 ? Math.max(0, (value - v0) / dt) : null;
+}
+const speedSamples = [];
+setInterval(() => {
+  const busy = active || queue.length, box = $('#upSpeed');
+  if (!busy) { speedSamples.length = 0; box.classList.add('hidden'); return; }
+  const r = rateOf(speedSamples, Date.now(), UP.sent);
+  box.classList.remove('hidden');
+  $('#upRate').textContent = r == null ? 'Midiendo velocidad…' : '↑ ' + fmtRate(r);
+  const left = Math.max(0, UP.bytesTotal - UP.bytesDone);
+  $('#upEta').textContent = r ? fmtEta(left / r) : '';
+  $('#upBytes').textContent = `${fmtSize(UP.bytesDone)} de ${fmtSize(UP.bytesTotal)}`;
+}, 1000);
 const MAX_PARALLEL = 2, CHUNK = 32 * 1024 * 1024, MIN_CHUNK = 1024 * 1024, MAX_TRIES = 6;
 const NO_RETRY = new Set([400, 401, 403, 404, 413, 507]);
 
@@ -648,9 +686,11 @@ function sendChunk(job, blob, offset, onProgress) {
 async function uploadFile(job) {
   const st = job.row.querySelector('.st'), bar = job.row.querySelector('.bar div'), size = job.file.size;
   job.uid = job.uid || (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
-  let offset = job.offset || 0, tries = 0, counted = offset;
-  const show = sent => { const p = size ? (offset + sent) / size * 100 : 100; bar.style.width = p + '%'; st.textContent = Math.floor(p) + '%';
-    const now = offset + sent; UP.bytesDone += Math.max(0, now - counted); counted = Math.max(counted, now); $('#upTotalBar').style.width = (UP.bytesDone / UP.bytesTotal * 100) + '%'; };
+  let offset = job.offset || 0, tries = 0, counted = offset; job._sp = []; job._rate = 0; job._t = 0;
+  const show = sent => { const p = size ? (offset + sent) / size * 100 : 100; bar.style.width = p + '%';
+    const now = offset + sent; UP.bytesDone += Math.max(0, now - counted); UP.sent += Math.max(0, now - counted); counted = Math.max(counted, now);
+    const t = Date.now(); if (!job._t || t - job._t > 700) { job._t = t; const r = rateOf(job._sp = job._sp || [], t, counted); if (r != null) job._rate = r; }
+    st.textContent = Math.floor(p) + '%' + (job._rate ? ' · ' + fmtRate(job._rate) : ''); $('#upTotalBar').style.width = (UP.bytesDone / UP.bytesTotal * 100) + '%'; };
   while (true) {
     const end = Math.min(offset + (job.chunk || CHUNK), size);
     const r = await sendChunk(job, job.file.slice(offset, end), offset, show);
@@ -804,6 +844,9 @@ function setBar(id, pct, warn = 75, crit = 90) { const b = $(id); b.style.width 
 async function loadStats() {
   try {
     const s = await api('/api/stats');
+    LIVE.push({t: Date.now(), cpu: s.cpu, mem: s.mem ? s.mem.used / s.mem.total * 100 : null, temp: s.temp});
+    if (LIVE.length > 60) LIVE.shift();
+    if (S.view === 'panel') paintLive();
     $('#stUser').textContent = fmtSize(s.used) + (s.quota ? ' de ' + fmtSize(s.quota) : '');
     setBar('#barUser', s.quota ? s.used / s.quota * 100 : 0);
     $('#stDisk').textContent = fmtSize(s.disk.free) + ' libres'; setBar('#barDisk', s.disk.used / s.disk.total * 100);
@@ -813,7 +856,8 @@ async function loadStats() {
     if (s.mem) { $('#stMem').textContent = fmtSize(s.mem.used) + ' / ' + fmtSize(s.mem.total); setBar('#barMem', s.mem.used / s.mem.total * 100); }
   } catch (e) {}
 }
-setInterval(() => { if (!document.hidden && S.me) loadStats(); }, 10000);
+let statsTick = 0;
+setInterval(() => { statsTick++; if (!document.hidden && S.me && (S.view === 'panel' || statsTick % 2 === 0)) loadStats(); }, 5000);
 
 /* ---------- barra superior, menus y tema ---------- */
 $('#newBtn').onclick = () => $('#newMenu').classList.toggle('hidden');
@@ -821,7 +865,15 @@ $('#newMenu').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#newMenu').classList.add('hidden'); closeSidebar();
   if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
 };
-$('#userBtn').onclick = () => $('#userMenu').classList.toggle('hidden');
+$('#quickBtn').onclick = () => { $('#userMenu').classList.add('hidden'); $('#quickMenu').classList.toggle('hidden'); };
+$('#quickMenu').onclick = e => {
+  const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#quickMenu').classList.add('hidden');
+  if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
+  if (['panel', 'recent', 'shared', 'trash'].includes(a)) go(a);
+  if (a === 'webdav') webdavDialog();
+  if (a === 'reload') { load(); loadStats(); toast('Actualizado', 1200); }
+};
+$('#userBtn').onclick = () => { $('#quickMenu').classList.add('hidden'); $('#userMenu').classList.toggle('hidden'); };
 $('#userMenu').onclick = async e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#userMenu').classList.add('hidden');
   if (a === 'logout') { await api('/api/logout', {method: 'POST'}); S.me = null; showAuth(); }
@@ -831,10 +883,10 @@ $('#userMenu').onclick = async e => {
 };
 $('#nav').onclick = e => { const a = e.target.closest('[data-view]'); if (a) go(a.dataset.view); };
 $('#gridBtn').onclick = () => setMode('grid'); $('#listBtn').onclick = () => setMode('list');
-function setMode(m) { S.mode = m; try { localStorage.setItem('dp-mode', m); } catch (e) {} if (S.view !== 'users') render(); }
+function setMode(m) { S.mode = m; try { localStorage.setItem('dp-mode', m); } catch (e) {} if (S.view !== 'users' && S.view !== 'panel') render(); }
 let searchT;
 $('#search').addEventListener('input', e => { clearTimeout(searchT); searchT = setTimeout(() => {
-  S.q = e.target.value.trim(); if (S.q && (S.view === 'users' || S.view === 'trash' || S.view === 'shared')) { S.view = 'drive'; $$('#nav a').forEach(a => a.classList.remove('active')); }
+  S.q = e.target.value.trim(); if (S.q && (S.view === 'users' || S.view === 'trash' || S.view === 'shared' || S.view === 'panel')) { S.view = 'drive'; $$('#nav a').forEach(a => a.classList.remove('active')); }
   if (!S.q) return route(); load(); }, 300); });
 const THEMES = ['auto', 'light', 'dark'], TNAME = {auto: 'Tema: automático', light: 'Tema: claro', dark: 'Tema: oscuro'}, TICON = {auto: 'auto', light: 'sun', dark: 'moon'};
 function paintTheme() { const t = document.documentElement.dataset.theme || 'auto'; const b = $('#themeBtn'); b.title = TNAME[t]; b.innerHTML = ic(TICON[t]); }
@@ -842,5 +894,183 @@ $('#themeBtn').onclick = () => { const t = THEMES[(THEMES.indexOf(document.docum
 $('#menuBtn').onclick = () => { $('#sidebar').classList.add('open'); $('#scrim').classList.remove('hidden'); };
 $('#scrim').onclick = closeSidebar;
 function closeSidebar() { $('#sidebar').classList.remove('open'); $('#scrim').classList.add('hidden'); }
+
+/* ---------- panel de actividad (graficos) ---------- */
+const LIVE = [];
+const KIND_NAME = {folder:'Carpetas', image:'Imágenes', video:'Vídeos', audio:'Audio', pdf:'PDF', archive:'Comprimidos', doc:'Documentos',
+  sheet:'Hojas de cálculo', slides:'Presentaciones', text:'Texto y código', file:'Otros'};
+const KIND_ONE = {image:'Imagen', video:'Vídeo', audio:'Audio', pdf:'Documento PDF', archive:'Archivo comprimido', doc:'Documento',
+  sheet:'Hoja de cálculo', slides:'Presentación', text:'Texto o código', file:'Archivo'};
+const ACT = {upload:['cloudUp','Subido'], mkdir:['folderAdd','Carpeta creada'], rename:['edit','Nombre cambiado'], move:['move','Movido'],
+  delete:['trash','Enviado a la papelera'], restore:['restore','Restaurado'], purge:['forever','Borrado para siempre'], share:['share','Compartido']};
+const fmtNum = n => (n || 0).toLocaleString('es-ES');
+function ago(t) {
+  const s = Date.now() / 1000 - t;
+  if (s < 60) return 'ahora'; if (s < 3600) return 'hace ' + Math.floor(s / 60) + ' min';
+  if (s < 86400) return 'hace ' + Math.floor(s / 3600) + ' h';
+  if (s < 7 * 86400) { const d = Math.floor(s / 86400); return d === 1 ? 'ayer' : 'hace ' + d + ' días'; }
+  return new Date(t * 1000).toLocaleDateString('es-ES', {day: 'numeric', month: 'short'});
+}
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+let panelMode = (() => { try { return localStorage.getItem('dp-panel-mode') || 'count'; } catch (e) { return 'count'; } })();
+let panelData = null;
+
+async function renderPanel() {
+  crumbs(); $('#emptyTrash').classList.add('hidden'); updateSel();
+  const c = $('#content');
+  if (!panelData) c.innerHTML = `<div class="empty">Calculando…</div>`;
+  let d;
+  try { d = await api('/api/dashboard'); } catch (e) { c.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  if (S.view !== 'panel') return;
+  panelData = d;
+  if (d.history && LIVE.length < d.history.length) { LIVE.length = 0; d.history.forEach(h => LIVE.push(h)); }
+  const up30 = d.uploads.reduce((a, x) => a + x.size, 0), upN = d.uploads.reduce((a, x) => a + x.count, 0);
+  const kpi = (icon, v, l) => `<div class="card kpi c3"><div class="k-ic">${ic(icon)}</div><div><div class="k-v">${v}</div><div class="k-l">${l}</div></div></div>`;
+  c.innerHTML = `<div class="dash">
+    ${kpi('file', fmtNum(d.files), `archivos en ${fmtNum(d.folders)} carpetas`)}
+    ${kpi('storage', fmtSize(d.used), d.quota ? `usados de ${fmtSize(d.quota)} (${Math.round(d.used / d.quota * 100)} %)` : 'usados (sin límite)')}
+    ${kpi('cloudUp', fmtSize(up30), `subidos en 30 días (${fmtNum(upN)} archivos)`)}
+    ${kpi('trash', fmtSize(d.trash.size), `en la papelera · ${fmtNum(d.shares)} ${d.shares === 1 ? "compartido" : "compartidos"}`)}
+
+    <div class="card c8"><div class="card-head"><div><h4>Archivos subidos por día</h4><div class="sub">Últimos 30 días</div></div>
+      <div class="seg" id="upMode"><button data-m="count">Archivos</button><button data-m="size">Tamaño</button></div></div>
+      <div id="upChart"></div></div>
+    <div class="card c4"><h4>Uso del disco</h4><div class="sub">${fmtSize(d.disk.total)} en total · ${fmtSize(d.disk.free)} libres</div>${spaceDonut(d)}</div>
+
+    <div class="card c6"><h4>Tipos de archivo</h4><div class="sub">Cuánto ocupa cada tipo</div>${kindBars(d.kinds)}</div>
+    <div class="card c6"><h4>Estado de la Raspberry Pi</h4><div class="sub">En directo, se actualiza cada 5 segundos</div><div id="liveBox"></div></div>
+
+    <div class="card c7"><h4>Actividad reciente</h4><div class="sub">Lo último que has hecho</div>${actionChips(d.actions)}${feedHtml(d.recent)}</div>
+    <div class="card c5"><h4>Archivos más grandes</h4><div class="sub">Los que más espacio ocupan</div>${largestHtml(d.largest)}</div>
+    ${d.users ? `<div class="card c12"><h4>Espacio por usuario</h4><div class="sub">Solo lo ven los administradores</div>${usersBars(d.users)}</div>` : ''}
+  </div><div class="dash-foot">Actualizado ${new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>`;
+  paintUploads(); paintLive();
+  $('#upMode').onclick = e => { const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return; panelMode = m; try { localStorage.setItem('dp-panel-mode', m); } catch (er) {} paintUploads(); };
+  c.querySelectorAll('[data-open]').forEach(el => el.onclick = () => { const p = el.dataset.open; go('drive', p.split('/').slice(0, -1).join('/')); });
+}
+
+function paintUploads() {
+  const d = panelData, box = $('#upChart'); if (!box) return;
+  $$('#upMode button').forEach(b => b.classList.toggle('on', b.dataset.m === panelMode));
+  const key = panelMode, vals = d.uploads.map(x => x[key]), max = niceMax(Math.max(...vals));
+  const lab = v => key === 'size' ? fmtSize(v).replace(/,0 /, ' ') : fmtNum(v);
+  const grid = [0.5, 1].map(f => `<div class="gl" style="bottom:${f * 100}%"><span>${lab(max * f)}</span></div>`).join('') + `<div class="gl" style="bottom:0;border:0"><span>0</span></div>`;
+  const day = s => new Date(s + 'T12:00:00').toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'});
+  const bars = d.uploads.map(x => `<div class="b ${x[key] ? '' : 'zero'}" data-tip="<div class='tt'>${esc(day(x.day))}</div><b>${fmtNum(x.count)}</b> archivos · <b>${fmtSize(x.size)}</b>"><div style="height:${x[key] / max * 100}%"></div></div>`).join('');
+  const sh = s => new Date(s + 'T12:00:00').toLocaleDateString('es-ES', {day: 'numeric', month: 'short'});
+  const u = d.uploads;
+  box.innerHTML = `<div class="vbars">${grid}${bars}</div><div class="xlab"><span>${sh(u[0].day)}</span><span>${sh(u[Math.floor(u.length / 2)].day)}</span><span>Hoy</span></div>` +
+    (vals.some(Boolean) ? '' : `<div class="dash-empty">No has subido nada en los últimos 30 días.</div>`);
+}
+
+function spaceDonut(d) {
+  const tot = (d.disk.used + d.disk.free) || 1, mine = Math.min(d.used, d.disk.used), other = Math.max(0, d.disk.used - mine);
+  const segs = [['Mis archivos', mine, 'var(--s1)'], ['Otros datos del disco', other, 'var(--s2)'], ['Libre', d.disk.free, 'var(--free)']];
+  const R = 60, C = 2 * Math.PI * R, gap = 2;
+  let off = 0;
+  const arcs = segs.map(([n, v, col]) => {
+    const len = v / tot * C; const a = `<circle r="${R}" cx="75" cy="75" stroke="${col}" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}"><title>${n}: ${fmtSize(v)}</title></circle>`;
+    off += len; return len > 0 ? a : '';
+  }).join('');
+  return `<div class="donut-row"><div class="donut"><svg viewBox="0 0 150 150">${arcs}</svg><div class="mid"><b>${Math.round(d.disk.used / tot * 100)} %</b><span>ocupado</span></div></div>
+    <div class="legend">${segs.map(([n, v, col]) => `<div><i class="sw" style="background:${col}"></i>${n}<b>${fmtSize(v)}</b></div>`).join('')}</div></div>`;
+}
+
+function hbars(rows) {
+  const max = Math.max(1, ...rows.map(r => r.v));
+  return `<div class="hbars">${rows.map(r => `<div class="hb" data-tip="${esc(r.tip)}"><div class="l">${r.icon}<span>${esc(r.label)}</span></div><div class="track"><div style="width:${r.v / max * 100}%"></div></div><div class="v">${r.vl}</div></div>`).join('')}</div>`;
+}
+function kindBars(kinds) {
+  if (!kinds.length) return `<div class="dash-empty">Todavía no hay archivos.</div>`;
+  const top = kinds.slice(0, 7), rest = kinds.slice(7);
+  if (rest.length) top.push({kind: 'file', count: rest.reduce((a, k) => a + k.count, 0), size: rest.reduce((a, k) => a + k.size, 0), other: true});
+  return hbars(top.map(k => ({label: k.other ? 'Resto' : KIND_NAME[k.kind] || k.kind, icon: ic(k.kind, 'ic-' + k.kind), v: k.size, vl: fmtSize(k.size),
+    tip: `<div class='tt'>${KIND_NAME[k.kind] || k.kind}</div><b>${fmtNum(k.count)}</b> archivos · <b>${fmtSize(k.size)}</b>`})));
+}
+function usersBars(users) {
+  return hbars(users.map(u => ({label: u.username, icon: avatarHtml(u.username, u.avatar, 'sm'), v: u.used, vl: fmtSize(u.used),
+    tip: `<div class='tt'>${esc(u.username)}</div><b>${fmtSize(u.used)}</b>${u.quota ? ' de ' + fmtSize(u.quota) : ' (sin límite)'}`})));
+}
+function actionChips(a) {
+  const ks = Object.keys(ACT).filter(k => a[k]);
+  if (!ks.length) return '';
+  return `<div class="chips">${ks.map(k => `<span class="chip">${ACT[k][1]}: <b>${fmtNum(a[k])}</b></span>`).join('')}<span class="chip">en 30 días</span></div>`;
+}
+function feedHtml(rows) {
+  if (!rows.length) return `<div class="dash-empty">Aún no hay actividad. Aquí verás lo que vayas subiendo, moviendo o borrando.</div>`;
+  return `<div class="feed">${rows.map(r => { const [icon, label] = ACT[r.action] || ['file', r.action]; const name = r.path.split('/').pop();
+    return `<div class="f" title="${esc(r.path)}"><div class="a-ic">${ic(icon, r.action === 'upload' ? 'ic-' + r.kind : '')}</div><div class="t"><div>${esc(name || '/')}</div><small>${label}${r.size ? ' · ' + fmtSize(r.size) : ''}</small></div><div class="when">${ago(r.at)}</div></div>`; }).join('')}</div>`;
+}
+function largestHtml(rows) {
+  if (!rows.length) return `<div class="dash-empty">Todavía no hay archivos.</div>`;
+  return `<div class="feed">${rows.map(r => `<div class="f" data-open="${esc(r.path)}" style="cursor:pointer" title="Abrir su carpeta: ${esc(r.path)}"><div class="a-ic">${ic(r.kind, 'ic-' + r.kind)}</div><div class="t"><div>${esc(r.name)}</div><small>${esc('/' + r.path.split('/').slice(0, -1).join('/'))}</small></div><div class="when"><b>${fmtSize(r.size)}</b></div></div>`).join('')}</div>`;
+}
+
+function paintLive() {
+  const box = $('#liveBox'); if (!box) return;
+  const pts = LIVE.slice(-60), n = 60;
+  const last = pts[pts.length - 1] || {};
+  const line = (k, col) => {
+    const p = pts.map((x, i) => x[k] == null ? null : [((n - pts.length + i) / (n - 1)) * 100, 100 - Math.max(0, Math.min(100, x[k]))]).filter(Boolean);
+    return p.length ? `<path d="M${p.map(q => q.join(',')).join('L')}" stroke="${col}"/>` : '';
+  };
+  const grid = [0, 50, 100].map(v => `<div class="gl" style="top:${100 - v}%"><span>${v}%</span></div>`).join('');
+  box.innerHTML = `<div class="live" id="liveChart">${grid}<svg viewBox="0 0 100 100" preserveAspectRatio="none">${line('cpu', 'var(--s1)')}${line('mem', 'var(--s2)')}</svg><div class="cross hidden"></div></div>
+    <div class="live-legend"><span><i class="ln" style="background:var(--s1)"></i>CPU <b>${last.cpu != null ? Math.round(last.cpu) + ' %' : '—'}</b></span>
+    <span><i class="ln" style="background:var(--s2)"></i>RAM <b>${last.mem != null ? Math.round(last.mem) + ' %' : '—'}</b></span>
+    ${last.temp != null ? `<span>Temperatura <b>${last.temp.toFixed(1).replace('.', ',')} °C</b></span>` : ''}
+    ${pts.length < 3 ? '<span>Recogiendo datos…</span>' : ''}</div>`;
+  const ch = $('#liveChart'), cross = ch.querySelector('.cross');
+  ch.onmousemove = e => {
+    const r = ch.getBoundingClientRect(), f = (e.clientX - r.left) / r.width, i = Math.round(f * (n - 1)) - (n - pts.length);
+    const x = pts[i]; if (!x) { cross.classList.add('hidden'); hideTip(); return; }
+    cross.classList.remove('hidden'); cross.style.left = ((n - pts.length + i) / (n - 1) * 100) + '%';
+    showTip(`<div class='tt'>${new Date(x.t).toLocaleTimeString('es-ES')}</div>CPU <b>${x.cpu != null ? Math.round(x.cpu) + ' %' : '—'}</b> · RAM <b>${x.mem != null ? Math.round(x.mem) + ' %' : '—'}</b>${x.temp != null ? ` · <b>${x.temp.toFixed(1).replace('.', ',')} °C</b>` : ''}`, e);
+  };
+  ch.onmouseleave = () => { cross.classList.add('hidden'); hideTip(); };
+}
+
+/* tooltip comun de los graficos */
+const tipEl = Object.assign(document.createElement('div'), {className: 'viz-tip hidden'}); document.body.appendChild(tipEl);
+function showTip(html, e) {
+  tipEl.innerHTML = html; tipEl.classList.remove('hidden');
+  const w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  tipEl.style.left = Math.max(8, Math.min(e.clientX + 14, innerWidth - w - 8)) + 'px';
+  tipEl.style.top = (e.clientY - h - 12 < 8 ? e.clientY + 16 : e.clientY - h - 12) + 'px';
+}
+function hideTip() { tipEl.classList.add('hidden'); }
+document.addEventListener('mousemove', e => { if (e.target.closest?.('#liveChart')) return; const t = e.target.closest?.('[data-tip]'); t ? showTip(t.dataset.tip, e) : hideTip(); });
+document.addEventListener('touchstart', e => { const t = e.target.closest?.('[data-tip]'); if (t) { const p = e.touches[0]; showTip(t.dataset.tip, {clientX: p.clientX, clientY: p.clientY}); } else hideTip(); }, {passive: true});
+
+/* ---------- propiedades (como en Windows) ---------- */
+async function propsDialog(items) {
+  if (!items.length) return;
+  const one = items.length === 1 ? items[0] : null;
+  const title = one ? esc(one.name) : items.length + ' elementos';
+  const icon = one ? ic(one.dir ? 'folder' : one.kind, 'ic-' + (one.dir ? 'folder' : one.kind)) : ic('file', 'ic-file');
+  const p = dialog(`<div class="props"><div class="props-head">${icon}<b>${title}</b></div><div id="propsBody"><div class="calc">Calculando el tamaño…</div></div>
+    <div class="actions"><button class="btn primary" data-close>Cerrar</button></div></div>`);
+  let q;
+  if (S.view === 'shared' && !S.share) q = one ? `paths=&share=${one.share_id}` : null;
+  else q = items.map(i => 'paths=' + enc(i.path)).join('&') + shareQ();
+  if (!q) { $('#propsBody').innerHTML = '<p>Elige un solo elemento.</p>'; return p; }
+  try {
+    const r = await api('/api/props?' + q);
+    const body = $('#propsBody'); if (!body) return p;
+    const rows = [];
+    if (one) rows.push(['Tipo', r.dir ? 'Carpeta' : KIND_ONE[r.kind] || 'Archivo']);
+    if (one && r.location != null) rows.push(['Ubicación', esc(r.location)]);
+    rows.push(['Tamaño', `<b>${fmtSize(r.size)}</b> <span class="c-m">(${fmtNum(r.size)} bytes)</span>`]);
+    if (!one || r.dir) rows.push(['Contiene', `${fmtNum(r.files)} archivos, ${fmtNum(r.folders)} carpetas`]);
+    if (one) rows.push(['Modificado', fmtDate(r.mtime)], ['Añadido', fmtDate(r.ctime)]);
+    let kinds = '';
+    if ((!one || r.dir) && r.kinds.length) {
+      kinds = `<label>Qué hay dentro</label>` + hbars(r.kinds.slice(0, 6).map(k => ({label: KIND_NAME[k.kind] || k.kind, icon: ic(k.kind, 'ic-' + k.kind), v: k.size, vl: fmtSize(k.size),
+        tip: `<div class='tt'>${KIND_NAME[k.kind] || k.kind}</div><b>${fmtNum(k.count)}</b> archivos · <b>${fmtSize(k.size)}</b>`})));
+    }
+    body.innerHTML = `<dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>${kinds}`;
+  } catch (e) { const b = $('#propsBody'); if (b) b.innerHTML = `<p>${esc(e.message)}</p>`; }
+  return p;
+}
 
 paintIcons(); paintTheme(); start(); restoreFailed();

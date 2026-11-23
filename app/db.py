@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS trash(
 CREATE TABLE IF NOT EXISTS shares(
   id INTEGER PRIMARY KEY, owner TEXT, path TEXT, token TEXT UNIQUE,
   target TEXT, created REAL, expires REAL);
+CREATE TABLE IF NOT EXISTS activity(
+  id INTEGER PRIMARY KEY, username TEXT, action TEXT, path TEXT,
+  size INTEGER DEFAULT 0, at REAL);
+CREATE INDEX IF NOT EXISTS activity_user_at ON activity(username, at);
 """
 
 
@@ -105,6 +109,7 @@ def init():
     if "expires" not in cols:
         run("ALTER TABLE shares ADD COLUMN expires REAL")
     run("DELETE FROM sessions WHERE expires<?", time.time())
+    run("DELETE FROM activity WHERE at<?", time.time() - 180 * 86400)  # se guarda medio ano
     if ADMIN_USER and ADMIN_PASSWORD and not q1("SELECT id FROM users WHERE username=?", ADMIN_USER):
         run("INSERT INTO users(username,pw_hash,is_admin,status,quota,created) VALUES(?,?,1,'approved',0,?)",
             ADMIN_USER, hash_pw(ADMIN_PASSWORD), time.time())
@@ -112,3 +117,13 @@ def init():
 
 def default_quota() -> int:
     return int(DEFAULT_QUOTA_GB * 1024**3)
+
+
+# --- registro de actividad (para el panel) ------------------------------------
+def log(username: str, action: str, path: str = "", size: int = 0):
+    """Apunta lo que hace cada usuario: upload, mkdir, rename, move, delete, restore, purge, share."""
+    try:
+        run("INSERT INTO activity(username,action,path,size,at) VALUES(?,?,?,?,?)",
+            username, action, path, int(size or 0), time.time())
+    except sqlite3.Error:
+        pass  # el registro nunca debe romper una operacion

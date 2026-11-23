@@ -74,6 +74,7 @@ async def _startup():
         if "_" not in f.name:
             f.unlink(missing_ok=True)
     asyncio.create_task(_cleaner())
+    asyncio.create_task(_sampler())
 
 
 async def _cleaner():
@@ -319,6 +320,7 @@ def mkdir(m: MkDir, u=Depends(current_user)):
         raise HTTPException(400, "Ya existe algo con ese nombre")
     p.mkdir()
     changed(u["username"])
+    db.log(u["username"], "mkdir", p.relative_to(root).as_posix())
     return {"ok": True}
 
 
@@ -455,6 +457,7 @@ async def upload(request: Request, path: str = "", name: str = Query(...), uid: 
             _unreserve(username, rkey)
     _unreserve(username, rkey)
     add_usage(username, size)
+    db.log(username, "upload", final.relative_to(root).as_posix(), size)
     return {"ok": True, "name": final.name, "done": True}
 
 
@@ -593,6 +596,74 @@ def zip_download(paths: list[str] = Query(...), share: int | None = None, u=Depe
     return zip_response(items, name)
 
 
+# --- propiedades (como "Propiedades" en Windows) ------------------------------
+def _props_one(p: Path) -> dict:
+    st = p.stat()
+    if p.is_file():
+        return {"size": st.st_size, "files": 1, "folders": 0, "kinds": {kind(p.name): [1, st.st_size]},
+                "mtime": st.st_mtime, "ctime": st.st_ctime}
+    size = files = folders = 0
+    kinds = {}
+    stack = [str(p)]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            folders += 1
+                            stack.append(e.path)
+                        elif e.is_file(follow_symlinks=False):
+                            sz = e.stat(follow_symlinks=False).st_size
+                            files += 1
+                            size += sz
+                            c = kinds.setdefault(kind(e.name), [0, 0])
+                            c[0] += 1
+                            c[1] += sz
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    return {"size": size, "files": files, "folders": folders, "kinds": kinds,
+            "mtime": st.st_mtime, "ctime": st.st_ctime}
+
+
+@app.get("/api/props")
+async def props(paths: list[str] = Query(...), share: int | None = None, u=Depends(current_user)):
+    root, _ = space(u, share)
+    base = root.parent if root.is_file() else root
+    targets = []
+    for rel in paths[:500]:
+        _, p, _ = resolve(u, rel, share)
+        if not p.exists():
+            raise HTTPException(404, "No encontrado")
+        targets.append(p)
+
+    def work():
+        tot = {"size": 0, "files": 0, "folders": 0, "kinds": {}}
+        one = None
+        for p in targets:
+            r = _props_one(p)
+            one = r
+            tot["size"] += r["size"]
+            tot["files"] += r["files"]
+            tot["folders"] += r["folders"] + (1 if p.is_dir() and len(targets) > 1 else 0)
+            for k, (n, sz) in r["kinds"].items():
+                c = tot["kinds"].setdefault(k, [0, 0])
+                c[0] += n
+                c[1] += sz
+        if len(targets) == 1:
+            p = targets[0]
+            tot.update({"name": p.name, "dir": p.is_dir(), "kind": kind(p.name, p.is_dir()),
+                        "location": "/" + p.parent.relative_to(base).as_posix().removeprefix("."),
+                        "mtime": one["mtime"], "ctime": one["ctime"]})
+        tot["kinds"] = [{"kind": k, "count": v[0], "size": v[1]} for k, v in sorted(tot["kinds"].items(), key=lambda x: -x[1][1])]
+        tot["count"] = len(targets)
+        return tot
+    return await asyncio.to_thread(work)
+
+
 # --- renombrar / mover / papelera ---------------------------------------------
 class Rename(BaseModel):
     path: str
@@ -610,6 +681,7 @@ def rename(r: Rename, u=Depends(current_user)):
         raise HTTPException(400, "Ya existe algo con ese nombre")
     p.rename(new)
     ops.fix_shares(u["username"], r.path, new.relative_to(root).as_posix())
+    db.log(u["username"], "rename", new.relative_to(root).as_posix())
     return {"ok": True}
 
 
@@ -635,6 +707,7 @@ def move(m: Move, u=Depends(current_user)):
         target = unique_path(dest / p.name)
         shutil.move(str(p), str(target))
         ops.fix_shares(u["username"], rel, target.relative_to(root).as_posix())
+        db.log(u["username"], "move", target.relative_to(root).as_posix())
     return {"ok": True}
 
 
@@ -675,6 +748,7 @@ def trash_restore(b: Ids, u=Depends(current_user)):
             dest = safe_path(root, r["orig_path"])
             dest.parent.mkdir(parents=True, exist_ok=True)
             os.rename(src, unique_path(dest))
+            db.log(username, "restore", r["orig_path"], r["size"])
         db.run("DELETE FROM trash WHERE id=?", i)
     changed(username)
     return {"ok": True}
@@ -689,6 +763,7 @@ def _purge(username, rows):
         elif p.exists():
             p.unlink()
         db.run("DELETE FROM trash WHERE id=?", r["id"])
+        db.log(username, "purge", r["orig_path"], r["size"])
     invalidate(username)
 
 
@@ -737,6 +812,7 @@ def share_create(s: ShareReq, u=Depends(current_user)):
     tok = secrets.token_urlsafe(12)
     db.run("INSERT INTO shares(owner,path,token,target,created,expires) VALUES(?,?,?,?,?,?)",
            u["username"], clean_rel(s.path), tok, target, time.time(), expires)
+    db.log(u["username"], "share", clean_rel(s.path) + (f" → {target}" if target else " (enlace)"))
     return {"ok": True, "token": tok, "expires": expires}
 
 
@@ -823,12 +899,121 @@ def _mem():
         return None
 
 
+# muestra cada 10 s (CPU, RAM, temperatura) para la grafica del panel: ultimos 10 minutos
+_history = []
+
+
+async def _sampler():
+    while True:
+        try:
+            m = _mem()
+            _history.append({"t": int(time.time() * 1000), "cpu": _cpu_percent(), "temp": _temp(),
+                             "mem": round(m["used"] / m["total"] * 100, 1) if m else None})
+            del _history[:-60]
+        except Exception:
+            pass
+        await asyncio.sleep(10)
+
+
 @app.get("/api/stats")
 def stats(u=Depends(current_user)):
     du = shutil.disk_usage(STORAGE)
-    return {"cpu": _cpu_percent(), "temp": _temp(), "mem": _mem(),
+    last = _history[-1] if _history else {}
+    return {"cpu": last.get("cpu"), "temp": _temp(), "mem": _mem(),
             "disk": {"total": du.total, "used": du.used, "free": du.free},
             "used": usage(u["username"]), "quota": u["quota"]}
+
+
+# --- panel de actividad -------------------------------------------------------------
+_dash_cache = {}
+DASH_DAYS = 30
+
+
+def _scan_user(username: str) -> dict:
+    """Recorre los archivos del usuario una vez: tipos, mas grandes y llegadas por dia.
+    Se guarda 2 minutos en memoria para no castigar la tarjeta SD / el disco de la Pi."""
+    hit = _dash_cache.get(username)
+    last = db.q1("SELECT MAX(at) t FROM activity WHERE username=?", username)["t"] or 0
+    if hit and hit[0] > time.time() and last <= hit[2]:  # si ha habido cambios, se vuelve a contar
+        return hit[1]
+    t0 = time.time()
+    root = user_root(username)
+    kinds, largest, days = {}, [], {}
+    files = folders = 0
+    start = time.time() - DASH_DAYS * 86400
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    if e.name.startswith("."):
+                        continue
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            folders += 1
+                            stack.append(e.path)
+                            continue
+                        if not e.is_file(follow_symlinks=False):
+                            continue
+                        st = e.stat(follow_symlinks=False)
+                    except OSError:
+                        continue
+                    files += 1
+                    k = kind(e.name)
+                    c = kinds.setdefault(k, [0, 0])
+                    c[0] += 1
+                    c[1] += st.st_size
+                    largest.append((st.st_size, e.path))
+                    if len(largest) > 64:
+                        largest.sort(reverse=True)
+                        del largest[8:]
+                    # ctime = cuando llego el archivo al disco (la subida conserva la fecha original en mtime)
+                    if st.st_ctime >= start:
+                        day = time.strftime("%Y-%m-%d", time.localtime(st.st_ctime))
+                        c = days.setdefault(day, [0, 0])
+                        c[0] += 1
+                        c[1] += st.st_size
+        except OSError:
+            continue
+    largest.sort(reverse=True)
+    out = {"files": files, "folders": folders,
+           "kinds": [{"kind": k, "count": v[0], "size": v[1]} for k, v in sorted(kinds.items(), key=lambda x: -x[1][1])],
+           "largest": [entry(Path(p), root) for _, p in largest[:5]],
+           "days": days}
+    _dash_cache[username] = (time.time() + 120, out, t0)
+    return out
+
+
+@app.get("/api/dashboard")
+async def dashboard(u=Depends(current_user)):
+    username = u["username"]
+    scan = await asyncio.to_thread(_scan_user, username)
+    today = time.time()
+    series = []
+    for i in range(DASH_DAYS - 1, -1, -1):
+        day = time.strftime("%Y-%m-%d", time.localtime(today - i * 86400))
+        c = scan["days"].get(day, [0, 0])
+        series.append({"day": day, "count": c[0], "size": c[1]})
+    since = today - DASH_DAYS * 86400
+    acts = db.q("SELECT action, COUNT(*) n FROM activity WHERE username=? AND at>=? GROUP BY action", username, since)
+    recent = db.q("SELECT action,path,size,at FROM activity WHERE username=? ORDER BY at DESC LIMIT 25", username)
+    trash = db.q1("SELECT COUNT(*) n, COALESCE(SUM(size),0) s FROM trash WHERE username=?", username)
+    shares_n = db.q1("SELECT COUNT(*) n FROM shares WHERE owner=?", username)["n"]
+    du = shutil.disk_usage(STORAGE)
+    out = {"files": scan["files"], "folders": scan["folders"], "kinds": scan["kinds"],
+           "largest": scan["largest"], "uploads": series,
+           "actions": {r["action"]: r["n"] for r in acts},
+           "recent": [dict(r) | {"kind": kind(r["path"].split(" → ")[0].removesuffix(" (enlace)"))} for r in recent],
+           "trash": {"count": trash["n"], "size": trash["s"]}, "shares": shares_n,
+           "used": usage(username), "quota": u["quota"],
+           "disk": {"total": du.total, "used": du.used, "free": du.free},
+           "history": _history}
+    if u["is_admin"]:
+        rows = db.q("SELECT id,username,quota FROM users WHERE status='approved' ORDER BY username")
+        out["users"] = sorted(({"username": r["username"], "used": usage(r["username"]), "quota": r["quota"],
+                                "avatar": avatar_version(r["id"])} for r in rows), key=lambda x: -x["used"])
+    return out
 
 
 # --- administracion ------------------------------------------------------------

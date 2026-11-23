@@ -49,6 +49,7 @@
       <a data-view="shared"><i data-i="people"></i>Compartido</a>
       <a data-view="recent"><i data-i="clock"></i>Recientes</a>
       <a data-view="photos"><i data-i="photo"></i>Fotos</a>
+      <a data-view="panel"><i data-i="chart"></i>Panel de actividad</a>
       <a data-view="trash"><i data-i="trash"></i>Papelera</a>
       <a data-view="users" class="admin-only hidden"><i data-i="shield"></i>Usuarios <span id="pendingBadge" class="badge hidden"></span></a>
     </nav>
@@ -66,6 +67,24 @@
     <header class="topbar">
       <button id="menuBtn" class="icon-btn mobile-only" title="Menú"><i data-i="menu"></i></button>
       <div class="search"><i data-i="search"></i><input id="search" type="search" placeholder="Buscar en Mi unidad"></div>
+      <div class="quick-wrap">
+        <button id="quickBtn" class="quick-btn" title="Acciones rápidas"><i data-i="bolt"></i><span>Acciones</span></button>
+        <div id="quickMenu" class="menu right hidden">
+          <div class="menu-label">Subir y crear</div>
+          <button data-act="upload"><i data-i="upload"></i>Subir archivos</button>
+          <button data-act="uploadDir"><i data-i="folderUp"></i>Subir carpeta</button>
+          <button data-act="mkdir"><i data-i="folderAdd"></i>Nueva carpeta</button>
+          <hr>
+          <div class="menu-label">Ir a</div>
+          <button data-act="panel"><i data-i="chart"></i>Panel de actividad</button>
+          <button data-act="recent"><i data-i="clock"></i>Recientes</button>
+          <button data-act="shared"><i data-i="people"></i>Compartido</button>
+          <button data-act="trash"><i data-i="trash"></i>Papelera</button>
+          <hr>
+          <button data-act="webdav"><i data-i="phone"></i>Conectar el móvil (WebDAV)</button>
+          <button data-act="reload"><i data-i="refresh"></i>Actualizar</button>
+        </div>
+      </div>
       <button id="themeBtn" class="icon-btn" title="Tema"><i data-i="auto"></i></button>
       <div class="user-wrap">
         <button id="userBtn" class="user-btn"><span id="userName"></span><span id="userAvatar" class="avatar"></span></button>
@@ -114,6 +133,7 @@
     <button class="icon-btn" id="upMin" title="Minimizar"><i data-i="down"></i></button>
     <button class="icon-btn" id="upClose" title="Cerrar"><i data-i="close"></i></button></div>
   <div class="bar up-total"><div id="upTotalBar"></div></div>
+  <div id="upSpeed" class="up-speed hidden"><span id="upRate"></span><span id="upEta"></span><span id="upBytes"></span></div>
   <div id="upFailBox" class="up-fail hidden">
     <div><b id="upFailCount"></b></div>
     <div class="up-fail-btns">

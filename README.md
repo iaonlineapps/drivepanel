@@ -4,29 +4,43 @@ Tu propio "Google Drive" en casa, pensado para una Raspberry Pi (funciona en cua
 Linux con Docker). Ligero (unos 40 MB de RAM), en español, con modo claro/oscuro y
 WebDAV para que el móvil suba las fotos solo.
 
-**Qué incluye:** Mi unidad con carpetas, cuadrícula con miniaturas o lista, búsqueda,
-subir archivos y carpetas enteras por trozos con reintentos (botón o arrastrar y soltar),
-aviso de duplicados, descargar en .zip, visor de fotos/vídeo/PDF/texto, Recientes,
-Fotos (por meses), Papelera con restaurar (también para lo que se borra por WebDAV), Compartido (con otro
-usuario o con enlace público que puede caducar), registro de usuarios con aprobación del administrador, cuotas por usuario,
-foto de perfil, estado del equipo (disco, CPU, temperatura, RAM), WebDAV por usuario en
-`/dav/` y se puede instalar en el móvil como app.
+**Qué incluye:**
+
+- **Mi unidad:** carpetas, cuadrícula con miniaturas o lista, búsqueda, renombrar, mover y
+  **Propiedades** (tamaño real de una carpeta, cuántos archivos tiene y qué tipos).
+- **Subidas:** archivos y carpetas enteras (botón, arrastrar y soltar o el menú **Acciones**),
+  por trozos con reintentos, aviso de duplicados, y velocidad y tiempo restante en directo.
+- **Panel de actividad:** gráfico de archivos subidos por día, uso del disco, tipos de
+  archivo, estado de la Raspberry Pi en directo, actividad reciente, archivos más grandes y
+  espacio por usuario (este último solo para el administrador).
+- **Fotos** por meses, **Recientes**, visor de fotos, vídeo, PDF y texto, y descarga en .zip.
+- **Papelera** con restaurar, también para lo que se borra por WebDAV.
+- **Compartir** con otro usuario o con un enlace público que puede caducar.
+- **Usuarios:** registro con aprobación del administrador, cuotas, foto de perfil.
+- **WebDAV** por usuario en `/dav/`, para que el móvil suba las fotos solo.
+- Se puede **instalar en el móvil** como app, y tiene modo claro y oscuro.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
 ![Mi unidad](docs/capturas/mi-unidad.png)
+
+![Panel de actividad](docs/capturas/panel.png)
 
 <details>
 <summary><b>Más capturas</b></summary>
 
 | | |
 |---|---|
-| ![Fotos por meses](docs/capturas/fotos.png) | ![Modo oscuro](docs/capturas/modo-oscuro.png) |
-| **Fotos**, agrupadas por meses | **Modo oscuro** |
-| ![Compartido](docs/capturas/compartido.png) | ![Usuarios](docs/capturas/usuarios.png) |
-| **Compartido**, con usuarios o por enlace | **Usuarios** (administrador) |
-| ![Entrar](docs/capturas/entrar.png) | <img src="docs/capturas/movil.png" width="260" alt="En el móvil"> |
-| **Pantalla de entrada** | **En el móvil** |
+| ![Acciones rápidas](docs/capturas/acciones.png) | ![Propiedades](docs/capturas/propiedades.png) |
+| **Acciones**: subir y crear desde arriba | **Propiedades** de una carpeta |
+| ![Panel de actividad, abajo](docs/capturas/panel-actividad.png) | ![Modo oscuro](docs/capturas/modo-oscuro.png) |
+| **Actividad reciente** y espacio por usuario | **Modo oscuro** |
+| ![Fotos por meses](docs/capturas/fotos.png) | ![Compartido](docs/capturas/compartido.png) |
+| **Fotos**, agrupadas por meses | **Compartido**, con usuarios o por enlace |
+| ![Usuarios](docs/capturas/usuarios.png) | <img src="docs/capturas/movil.png" width="260" alt="En el móvil"> |
+| **Usuarios** (administrador) | **En el móvil** |
+| ![Entrar](docs/capturas/entrar.png) | |
+| **Pantalla de entrada** | |
 
 </details>
 

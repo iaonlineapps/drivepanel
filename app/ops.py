@@ -18,6 +18,7 @@ def move_to_trash(username: str, rel: str) -> bool:
     db.run("INSERT INTO trash(username,orig_path,trash_name,is_dir,size,deleted_at) VALUES(?,?,?,?,?,?)",
            username, rel, tname, int(isdir), size, time.time())
     db.run("DELETE FROM shares WHERE owner=? AND (path=? OR path LIKE ?)", username, rel, rel + "/%")
+    db.log(username, "delete", rel, size)
     changed(username)
     return True
 
