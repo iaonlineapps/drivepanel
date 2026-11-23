@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Cada versión que se publica en GitHub lleva la etiqueta android-vX.Y -->
 
+## Versión 1.4
+- La versión se ve siempre: abajo del menú lateral y en tu menú de usuario aparecen la versión del servidor y la de la app.
+
 ## Versión 1.3
 - Ya se pueden subir carpetas enteras desde el móvil, con todas sus subcarpetas. En DrivePanel elige «Subir carpeta», busca la carpeta y toca «Usar esta carpeta».
 

@@ -160,6 +160,8 @@ servidor.
 - **Versión y novedades:** pulsa **Atrás** en la pantalla principal y elige **Novedades**, o
   mantén pulsado el icono. La lista completa está en
   [`android/src/main/res/raw/novedades.md`](android/src/main/res/raw/novedades.md).
+- **Qué versión tienes:** abajo del todo del menú lateral y en tu menú de usuario (la foto de
+  arriba a la derecha) se ve la versión del servidor y, en la app, también la de la app.
 - **Actualizaciones:** la app mira en GitHub si hay una versión nueva y te avisa. Al descargarla
   se instala encima de la que tienes, sin perder nada.
 

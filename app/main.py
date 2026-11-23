@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import db, limits, ops
+from .version import VERSION
 from .config import STORAGE, TRASH, TMP, CONFIG, ARCHIVE, ALLOW_REGISTER
 from .fsutil import (user_root, trash_root, safe_path, valid_name, unique_path, entry,
                      walk_files, usage, add_usage, invalidate, changed, thumbnail, clean_rel,
@@ -185,7 +186,7 @@ def change_pw(p: PwChange, request: Request, u=Depends(current_user)):
 def me(u=Depends(current_user)):
     pending = db.q1("SELECT COUNT(*) n FROM users WHERE status='pending'")["n"] if u["is_admin"] else 0
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "quota": u["quota"],
-            "used": usage(u["username"]), "pending": pending, "avatar": avatar_version(u["id"])}
+            "used": usage(u["username"]), "pending": pending, "avatar": avatar_version(u["id"]), "version": VERSION}
 
 
 # --- foto de perfil -------------------------------------------------------------

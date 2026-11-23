@@ -316,7 +316,7 @@ public class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setSupportZoom(false);
-        s.setUserAgentString(s.getUserAgentString() + " DrivePanelAndroid");
+        s.setUserAgentString(s.getUserAgentString() +  " DrivePanelAndroid/" + Novedades.version(this));
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);

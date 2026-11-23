@@ -1,6 +1,9 @@
 FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DRIVE_DATA=/data
+# Version que se ve en la web; la imagen publicada la recibe de la etiqueta (v1.2.3)
+ARG DRIVEPANEL_VERSION=
+ENV DRIVEPANEL_VERSION=${DRIVEPANEL_VERSION}
 WORKDIR /app
 COPY requirements.txt .
 # En Raspberry Pi de 32 bits (armv7) no hay Pillow ya compilado: se compila aquí

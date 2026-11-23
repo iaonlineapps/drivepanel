@@ -118,10 +118,16 @@ async function start() {
   try { S.me = await api('/api/me'); } catch (e) { showAuth(); return; }
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#userName').textContent = S.me.username; $('#menuName').textContent = S.me.username;
-  paintAvatars();
+  paintAvatars(); paintVersion();
   $$('.admin-only').forEach(e => e.classList.toggle('hidden', !S.me.is_admin));
   updateBadge(S.me.pending);
   route(); loadStats();
+}
+// Versión del servidor y, si se abre desde la app de Android, también la de la app
+function paintVersion() {
+  const app = (navigator.userAgent.match(/DrivePanelAndroid\/([\d.]+)/) || [])[1];
+  const t = `DrivePanel ${S.me.version || '?'}` + (app ? ` · App Android ${app}` : '');
+  $('#sideVersion').textContent = t; $('#menuVersion').textContent = t.replace(' · ', '\n');
 }
 const AV_COLORS = ['#1a73e8','#e8710a','#188038','#a142f4','#d93025','#12b5cb','#e52592','#9334e6'];
 function avatarHtml(name, ver, cls = '') {
