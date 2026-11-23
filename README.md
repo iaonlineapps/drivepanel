@@ -184,7 +184,7 @@ servidor.
    Si aparece un aviso de *Play Protect*, toca **Más detalles → Instalar de todas formas**:
    sale porque la app no viene de Google Play.
 3. Abre **DrivePanel** y escribe la **dirección de tu servidor**, la misma que usas en el
-   navegador (por ejemplo `192.168.1.50:8090`). La app comprueba que es un DrivePanel y la
+   navegador (por ejemplo `192.168.1.x:8090`). La app comprueba que es un DrivePanel y la
    recuerda.
 
 > **Ojo, en casa o fuera de casa:** la dirección con la IP de casa (`192.168.…:8090`) **solo
