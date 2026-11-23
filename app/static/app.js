@@ -158,7 +158,8 @@ window.addEventListener('hashchange', route);
 function route() {
   if (!S.me) return;
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
-  const view = ['drive','shared','recent','photos','trash','users','panel'].includes(parts[0]) ? parts[0] : 'drive';
+  // sin nada en la direccion (al entrar en la web) se abre la pantalla de inicio elegida
+  const view = ['drive','shared','recent','photos','trash','users','panel'].includes(parts[0]) ? parts[0] : !parts[0] ? homeView() : 'drive';
   if (view === 'users' && !S.me.is_admin) return go('drive');
   S.view = view; S.share = null; S.path = '';
   if (view === 'drive') S.path = parts.slice(1).filter(Boolean).join('/');
@@ -883,7 +884,7 @@ $('#userBtn').onclick = () => { $('#quickMenu').classList.add('hidden'); $('#use
 $('#userMenu').onclick = async e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#userMenu').classList.add('hidden');
   if (a === 'logout') { await api('/api/logout', {method: 'POST'}); S.me = null; showAuth(); }
-  if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog();
+  if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'home') homeDialog();
   if (a === 'avatar') $('#avatarInput').click();
   if (a === 'avatarDel') { await api('/api/avatar', {method: 'DELETE'}); S.me.avatar = 0; paintAvatars(); toast('Foto quitada'); }
 };
@@ -900,6 +901,21 @@ $('#themeBtn').onclick = () => { const t = THEMES[(THEMES.indexOf(document.docum
 $('#menuBtn').onclick = () => { $('#sidebar').classList.add('open'); $('#scrim').classList.remove('hidden'); };
 $('#scrim').onclick = closeSidebar;
 function closeSidebar() { $('#sidebar').classList.remove('open'); $('#scrim').classList.add('hidden'); }
+
+/* ---------- pantalla de inicio (se guarda en este navegador) ---------- */
+const HOMES = {panel: ['chart', 'Panel de actividad', 'Gráficos de espacio, subidas y actividad'], drive: ['drive', 'Mi unidad', 'Tus carpetas y archivos']};
+function homeView() { try { const h = localStorage.getItem('dp-home'); return HOMES[h] ? h : 'panel'; } catch (e) { return 'panel'; } }
+async function homeDialog() {
+  const cur = homeView();
+  const p = dialog(`<h3>Pantalla de inicio</h3><p>Lo que se abre al entrar en DrivePanel desde este navegador.</p><div class="choice-list">` +
+    Object.entries(HOMES).map(([k, [icon, name, sub]]) => `<button class="btn${k === cur ? ' primary' : ''}" data-home="${k}">${ic(icon)}<span><b>${name}</b><br><small>${sub}</small></span></button>`).join('') +
+    `</div><div class="actions"><button class="btn" data-close>Cerrar</button></div>`);
+  $('#dialogBox').querySelectorAll('[data-home]').forEach(b => b.onclick = () => {
+    try { localStorage.setItem('dp-home', b.dataset.home); } catch (e) {}
+    closeDialog(); toast('Al entrar se abrirá: ' + HOMES[b.dataset.home][1]);
+  });
+  return p;
+}
 
 /* ---------- panel de actividad (graficos) ---------- */
 const LIVE = [];
