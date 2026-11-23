@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTM
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import db, limits, ops
+from . import db, limits, ops, settings
 from .version import VERSION
 from .config import STORAGE, TRASH, TMP, CONFIG, ARCHIVE, ALLOW_REGISTER
 from .fsutil import (user_root, trash_root, safe_path, valid_name, unique_path, entry,
@@ -68,6 +68,7 @@ def archive_user_dirs(name: str) -> str | None:
 
 async def _startup():
     db.init()
+    settings.apply()
     # Las subidas enteras (sin trozos) que quedaron a medias al reiniciar no se pueden
     # continuar: se borran ya. Las de trozos se conservan para poder seguir, y las
     # abandonadas hace mas de 2 dias se borran cada hora en segundo plano.
@@ -186,7 +187,28 @@ def change_pw(p: PwChange, request: Request, u=Depends(current_user)):
 def me(u=Depends(current_user)):
     pending = db.q1("SELECT COUNT(*) n FROM users WHERE status='pending'")["n"] if u["is_admin"] else 0
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "quota": u["quota"],
-            "used": usage(u["username"]), "pending": pending, "avatar": avatar_version(u["id"]), "version": VERSION}
+            "used": usage(u["username"]), "pending": pending, "avatar": avatar_version(u["id"]), "version": VERSION,
+            **settings.public()}
+
+
+class SettingsUpd(BaseModel):
+    machine: str | None = None
+    custom: dict[str, int] | None = None
+    accent: str | None = None
+
+
+@app.get("/api/admin/settings")
+def admin_settings(a=Depends(admin_user)):
+    return settings.admin_view()
+
+
+@app.post("/api/admin/settings")
+def admin_settings_set(b: SettingsUpd, a=Depends(admin_user)):
+    try:
+        settings.update(b.machine, b.custom, b.accent)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return settings.admin_view()
 
 
 # --- foto de perfil -------------------------------------------------------------

@@ -203,7 +203,12 @@ def tree_entry(t: tuple) -> dict:
 
 
 # --- miniaturas --------------------------------------------------------------
-_thumb_sem = threading.Semaphore(2)  # la Pi no necesita mas de 2 a la vez
+_thumb_sem = threading.Semaphore(2)  # se ajusta con el perfil de maquina (Ajustes)
+
+
+def set_thumb_workers(n: int):
+    global _thumb_sem
+    _thumb_sem = threading.Semaphore(max(1, int(n)))
 
 
 def thumbnail(p: Path, size=320) -> Path | None:
