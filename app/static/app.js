@@ -942,6 +942,7 @@ $('#userMenu').onclick = async e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#userMenu').classList.add('hidden');
   if (a === 'logout') { await api('/api/logout', {method: 'POST'}); S.me = null; showAuth(); }
   if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'home') homeDialog();
+  if (a === 'settings') go('settings');
   if (a === 'avatar') $('#avatarInput').click();
   if (a === 'avatarDel') { await api('/api/avatar', {method: 'DELETE'}); S.me.avatar = 0; paintAvatars(); toast('Foto quitada'); }
 };
