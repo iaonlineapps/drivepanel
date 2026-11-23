@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.3
+- Copia automática de fotos, como Google Fotos: la app sube sola las fotos y vídeos nuevos del móvil a una carpeta de DrivePanel, con una subcarpeta por álbum. Se puede elegir solo con wifi, solo las de la cámara y la carpeta. Actívala pulsando Atrás → «Copia automática de fotos».
+
 ## Versión 1.6.2
 - El panel de descargas tiene ahora un resumen como el de Windows 11: porcentaje completado, archivo que se está bajando, gráfica de velocidad en directo, tiempo que queda y cuántos elementos faltan.
 - Si abres DrivePanel en el navegador del móvil (por ejemplo desde un enlace de Telegram), al tocar Descargar puedes elegir «Abrir en la app DrivePanel» y se descarga en la app, con su panel de descargas.

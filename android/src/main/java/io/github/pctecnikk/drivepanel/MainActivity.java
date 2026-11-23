@@ -62,9 +62,11 @@ public class MainActivity extends Activity {
     private static final String KEY_URL = "server_url";
     private static final String ACTION_CHANGE_SERVER = "io.github.pctecnikk.drivepanel.CHANGE_SERVER";
     private static final String ACTION_NOVEDADES = "io.github.pctecnikk.drivepanel.NOVEDADES";
+    static final String ACTION_COPIA = "io.github.pctecnikk.drivepanel.COPIA";
     private static final int REQ_FILES = 1;
     private static final int REQ_STORAGE = 2;
     private static final int REQ_FOLDER = 3;
+    private static final int REQ_MEDIA = 4;
     private static final int BLUE = 0xFF1A73E8;
 
     private SharedPreferences prefs;
@@ -106,6 +108,7 @@ public class MainActivity extends Activity {
         }
         if (state == null) Novedades.showIfUpdated(this, prefs, url == null);
         if (getIntent() != null && ACTION_NOVEDADES.equals(getIntent().getAction())) Novedades.show(this, prefs, null);
+        if (state == null && getIntent() != null && ACTION_COPIA.equals(getIntent().getAction())) showCopia();
         if (state == null && Compartir.isShare(getIntent())) handleShare(getIntent());
         if (state == null && isAppLink(getIntent())) handleAppLink(getIntent());
     }
@@ -119,6 +122,7 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         if (isChangeServer(intent)) showSetup(prefs.getString(KEY_URL, null), null);
         else if (ACTION_NOVEDADES.equals(intent.getAction())) Novedades.show(this, prefs, null);
+        else if (ACTION_COPIA.equals(intent.getAction())) showCopia();
         else if (Compartir.isShare(intent)) handleShare(intent);
         else if (isAppLink(intent)) handleAppLink(intent);
     }
@@ -501,6 +505,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
+                saveCookie(url);
                 view.evaluateJavascript(Carpeta.JS, null);
                 view.evaluateJavascript(versionJs(), null);
                 injectShare();
@@ -685,6 +690,22 @@ public class MainActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (code == REQ_MEDIA) {
+            boolean any = false;
+            for (int i = 0; i < perms.length; i++) {
+                if (results[i] == PackageManager.PERMISSION_GRANTED && !perms[i].endsWith("POST_NOTIFICATIONS")) any = true;
+            }
+            if (any) {
+                prefs.edit().putBoolean(CopiaFotos.K_ON, true).apply();
+                CopiaFotos.schedule(this);
+                CopiaFotos.runNow(this);
+                toast("Copia automática activada");
+            } else {
+                toast("Sin permiso para ver tus fotos no se puede hacer la copia");
+            }
+            showCopia();
+            return;
+        }
         if (code == REQ_STORAGE) {
             PendingDownload d = pendingDownload;
             pendingDownload = null;
@@ -777,6 +798,141 @@ public class MainActivity extends Activity {
         } }).start();
     }
 
+    // ------------------------------------------------------------------ Copia automatica de fotos
+
+    /** Guarda la sesion para que la copia de fotos pueda subir aunque la app este cerrada. */
+    private void saveCookie(String url) {
+        try {
+            String base = prefs.getString(KEY_URL, null);
+            if (base == null || url == null || !url.startsWith(base)) return;
+            String c = CookieManager.getInstance().getCookie(base);
+            if (c != null && !c.equals(prefs.getString(CopiaFotos.K_COOKIE, null))) {
+                prefs.edit().putString(CopiaFotos.K_COOKIE, c).apply();
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private String[] mediaPermissions() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return new String[]{"android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO",
+                    "android.permission.POST_NOTIFICATIONS"};
+        }
+        return new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
+    }
+
+    private boolean hasMediaPermission() {
+        String p = Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES" : Manifest.permission.READ_EXTERNAL_STORAGE;
+        if (checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED) return true;
+        // Android 14: "Permitir acceso limitado" a algunas fotos
+        return Build.VERSION.SDK_INT >= 34
+                && checkSelfPermission("android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void showCopia() {
+        final boolean on = prefs.getBoolean(CopiaFotos.K_ON, false);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(22), dp(6), dp(22), 0);
+
+        TextView info = new TextView(this);
+        info.setText("Como Google Fotos: DrivePanel sube solo las fotos y vídeos nuevos del móvil a una carpeta "
+                + "de tu servidor, con una subcarpeta por álbum (Camera, WhatsApp Images…). Lo que ya esté subido no se repite.");
+        info.setTextSize(14);
+        box.addView(info);
+
+        final android.widget.CheckBox wifi = new android.widget.CheckBox(this);
+        wifi.setText("Solo con wifi (no gasta datos)");
+        wifi.setChecked(prefs.getBoolean(CopiaFotos.K_WIFI, true));
+        box.addView(wifi);
+
+        final android.widget.CheckBox camera = new android.widget.CheckBox(this);
+        camera.setText("Solo fotos y vídeos de la cámara (sin WhatsApp ni capturas)");
+        camera.setChecked(prefs.getBoolean(CopiaFotos.K_CAMERA, true));
+        box.addView(camera);
+
+        TextView fl = new TextView(this);
+        fl.setText("\nCarpeta de DrivePanel (se crea si no existe):");
+        fl.setTextSize(14);
+        box.addView(fl);
+        final EditText folder = new EditText(this);
+        folder.setSingleLine(true);
+        folder.setText(prefs.getString(CopiaFotos.K_FOLDER, CopiaFotos.DEFAULT_FOLDER));
+        box.addView(folder);
+
+        TextView st = new TextView(this);
+        String status = prefs.getString(CopiaFotos.K_STATUS, null);
+        long total = prefs.getLong(CopiaFotos.K_TOTAL, 0);
+        st.setText(on ? "\nEstado: " + (status != null ? status : "esperando") + "\nCopiadas hasta ahora: " + total
+                : "\nAhora está desactivada.");
+        st.setTextSize(13);
+        st.setTextColor(0xFF5F6368);
+        box.addView(st);
+
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle("Copia automática de fotos")
+                .setView(box)
+                .setNegativeButton("Cerrar", null);
+        if (on) {
+            b.setPositiveButton("Guardar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
+                CopiaFotos.schedule(MainActivity.this);
+                toast("Guardado");
+            } });
+            b.setNeutralButton("Desactivar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                prefs.edit().putBoolean(CopiaFotos.K_ON, false).apply();
+                CopiaFotos.cancelAll(MainActivity.this);
+                toast("Copia automática desactivada");
+            } });
+        } else {
+            b.setPositiveButton("Activar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
+                askWhichPhotos();
+            } });
+        }
+        final AlertDialog dlg = b.show();
+        if (on) {
+            // "Copiar ahora" sin cerrar el dialogo de un toque accidental
+            Button now = new Button(this);
+            now.setText("Copiar ahora");
+            now.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
+                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
+                CopiaFotos.runNow(MainActivity.this);
+                toast("Copiando… verás el progreso en las notificaciones");
+                dlg.dismiss();
+            } });
+            box.addView(now);
+        }
+    }
+
+    private void saveCopia(boolean wifi, boolean camera, String folder) {
+        String f = folder.trim().replace('\\', '/');
+        while (f.startsWith("/")) f = f.substring(1);
+        while (f.endsWith("/")) f = f.substring(0, f.length() - 1);
+        prefs.edit().putBoolean(CopiaFotos.K_WIFI, wifi).putBoolean(CopiaFotos.K_CAMERA, camera)
+                .putString(CopiaFotos.K_FOLDER, f).apply();
+    }
+
+    private void askWhichPhotos() {
+        new AlertDialog.Builder(this)
+                .setTitle("¿Qué fotos copio?")
+                .setItems(new CharSequence[]{"Solo las nuevas, desde ahora", "También todas las que ya tengo en el móvil"},
+                        new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
+                            long since = which == 0 ? System.currentTimeMillis() / 1000 : 0;
+                            prefs.edit().putLong(CopiaFotos.K_SINCE, since).putLong(CopiaFotos.K_SINCE_ID, -1).apply();
+                            if (hasMediaPermission()) {
+                                prefs.edit().putBoolean(CopiaFotos.K_ON, true).apply();
+                                CopiaFotos.schedule(MainActivity.this);
+                                CopiaFotos.runNow(MainActivity.this);
+                                toast("Copia automática activada");
+                                if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, REQ_STORAGE + 10);
+                            } else {
+                                requestPermissions(mediaPermissions(), REQ_MEDIA);
+                            }
+                        } })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
     // ------------------------------------------------------------------ Atras y ciclo de vida
 
     @Override
@@ -795,11 +951,12 @@ public class MainActivity extends Activity {
         }
         new AlertDialog.Builder(this)
                 .setTitle("DrivePanel")
-                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades (versión " + Novedades.version(this) + ")", "Pantalla al abrir: " + ("drive".equals(startView()) ? "Mi unidad" : "Panel de actividad")}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
+                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades (versión " + Novedades.version(this) + ")", "Pantalla al abrir: " + ("drive".equals(startView()) ? "Mi unidad" : "Panel de actividad"), "Copia automática de fotos: " + (prefs.getBoolean(CopiaFotos.K_ON, false) ? "activada" : "desactivada")}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
                     if (which == 0) finish();
                     else if (which == 1) showSetup(prefs.getString(KEY_URL, null), null);
                     else if (which == 3) Novedades.show(MainActivity.this, prefs, null);
                     else if (which == 4) chooseStartView();
+                    else if (which == 5) showCopia();
                     else if (web != null) web.reload();
                 } })
                 .setNegativeButton("Cancelar", null)
