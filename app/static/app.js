@@ -362,8 +362,27 @@ function openItem(it) {
   openViewer(it);
 }
 function download(items) {
-  if (items.length === 1 && !items[0].dir) { location.href = fileUrl(items[0].path, true); return; }
-  location.href = '/api/zip?' + items.map(i => 'paths=' + enc(i.path)).join('&') + shareQ();
+  const one = items.length === 1 && !items[0].dir;
+  const url = one ? fileUrl(items[0].path, true) : '/api/zip?' + items.map(i => 'paths=' + enc(i.path)).join('&') + shareQ();
+  const name = one ? items[0].name : (items.length === 1 ? items[0].name : 'DrivePanel') + '.zip';
+  if (ANDROID_WEB) return appOrHere(url, name);
+  location.href = url;
+}
+// En el navegador de un móvil Android: elegir entre abrir la descarga en la app DrivePanel
+// (con su panel de descargas) o descargar aquí. Si no tienen la app, el primer botón lleva a bajarla.
+const ANDROID_WEB = /Android/i.test(navigator.userAgent) && !/DrivePanelAndroid\//.test(navigator.userAgent);
+function appIntent(url, name) {
+  const abs = new URL(url, location.href).href;
+  return 'intent://open?url=' + encodeURIComponent(abs) + '&name=' + encodeURIComponent(name) +
+    '#Intent;scheme=drivepanel;package=io.github.pctecnikk.drivepanel;S.browser_fallback_url=' +
+    encodeURIComponent('https://github.com/pctecnikk/drivepanel/releases') + ';end';
+}
+function appOrHere(url, name) {
+  dialog(`<h3>Descargar ${esc(name)}</h3><p>¿Dónde quieres descargarlo?</p><div class="choice-list" style="display:flex;flex-direction:column;gap:10px">
+    <a class="btn primary" href="${esc(appIntent(url, name))}" data-close style="justify-content:center;text-decoration:none">Abrir en la app DrivePanel</a>
+    <a class="btn" href="${esc(url)}" data-close style="justify-content:center;text-decoration:none">Descargar aquí (navegador)</a></div>
+    <p style="font-size:13px;margin-top:12px">Si no tienes la app, el primer botón te lleva a descargarla.</p>
+    <div class="actions"><button class="btn" data-close>Cancelar</button></div>`);
 }
 const actions = {
   open: it => openItem(it),
@@ -513,7 +532,7 @@ function openViewer(it) {
 }
 async function showViewer() {
   const it = vList[vIdx], b = $('#vBody'), url = fileUrl(it.path);
-  $('#vName').textContent = it.name; $('#vDownload').href = fileUrl(it.path, true);
+  $('#vName').textContent = it.name; $('#vDownload').href = fileUrl(it.path, true); $('#vDownload').onclick = ANDROID_WEB ? (e => { e.preventDefault(); appOrHere(fileUrl(it.path, true), it.name); }) : null;
   $('#vPrev').style.visibility = vIdx > 0 ? '' : 'hidden'; $('#vNext').style.visibility = vIdx < vList.length - 1 ? '' : 'hidden';
   if (it.kind === 'image') b.innerHTML = `<img src="${url}" alt="">`;
   else if (it.kind === 'video') b.innerHTML = `<video src="${url}" controls autoplay playsinline preload="metadata"></video>`;
