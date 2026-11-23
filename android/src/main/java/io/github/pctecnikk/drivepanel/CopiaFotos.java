@@ -60,6 +60,13 @@ public class CopiaFotos extends JobService {
 
     // ------------------------------------------------------------------ Programar
 
+    /** Al abrir la app: si la copia esta activada y el movil se reinicio, vuelve a programarla. */
+    static void ensureScheduled(Context c) {
+        if (!prefs(c).getBoolean(K_ON, false)) return;
+        JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+        if (js.getPendingJob(JOB_PERIODIC) == null || js.getPendingJob(JOB_TRIGGER) == null) schedule(c);
+    }
+
     static void schedule(Context c) {
         SharedPreferences p = prefs(c);
         JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
@@ -71,7 +78,6 @@ public class CopiaFotos extends JobService {
         js.schedule(new JobInfo.Builder(JOB_PERIODIC, cn)
                 .setRequiredNetworkType(net)
                 .setPeriodic(30 * 60 * 1000L)
-                .setPersisted(true)
                 .build());
         scheduleTrigger(c);
     }

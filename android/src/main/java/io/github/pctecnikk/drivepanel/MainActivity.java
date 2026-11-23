@@ -93,6 +93,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        CopiaFotos.ensureScheduled(this);
         root = new FrameLayout(this);
         root.setBackgroundColor(0xFFF8FAFD);
         setContentView(root);
