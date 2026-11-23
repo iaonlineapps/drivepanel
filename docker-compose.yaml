@@ -1,0 +1,24 @@
+services:
+  drive-panel:
+    build: .
+    image: drive-panel:latest
+    container_name: drive-panel
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "${PORT:-8090}:8090"
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      - DEFAULT_QUOTA_GB=${DEFAULT_QUOTA_GB:-0}
+      - ADMIN_USER=${ADMIN_USER:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - ALLOW_REGISTER=${ALLOW_REGISTER:-1}
+    volumes:
+      # Todos los datos: storage/, config/, trash/, cache/, tmp/, archivo/
+      - ${DATA_DIR:-./data}:/data
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

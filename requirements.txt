@@ -1,0 +1,5 @@
+fastapi==0.165.0
+uvicorn==0.54.0
+wsgidav==4.4.1
+a2wsgi==1.10.10
+pillow==13.0.0

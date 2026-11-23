@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DrivePanel</title>
+<meta name="theme-color" content="#1a73e8">
+<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DrivePanel">
+<link rel="stylesheet" href="/static/style.css">
+<script>
+  (function(){try{var t=localStorage.getItem('dp-theme')||'auto';document.documentElement.dataset.theme=t;}catch(e){}})();
+</script>
+</head>
+<body>
+<!-- Pantalla de acceso -->
+<div id="auth" class="auth hidden">
+  <form id="authForm" class="auth-card">
+    <div class="brand big"><img src="/static/icons/icon.svg" alt="">DrivePanel</div>
+    <h2 id="authTitle">Iniciar sesión</h2>
+    <input id="authUser" placeholder="Usuario" autocomplete="username" autocapitalize="none" required>
+    <input id="authPass" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+    <input id="authPass2" type="password" placeholder="Repite la contraseña" autocomplete="new-password" class="hidden">
+    <div id="authMsg" class="auth-msg"></div>
+    <button class="btn primary" id="authBtn" type="submit">Entrar</button>
+    <a href="#" id="authSwitch">¿No tienes cuenta? Regístrate</a>
+  </form>
+</div>
+
+<!-- Aplicación -->
+<div id="app" class="app hidden">
+  <aside id="sidebar" class="sidebar">
+    <div class="brand"><img src="/static/icons/icon.svg" alt="">DrivePanel</div>
+    <div class="new-wrap">
+      <button id="newBtn" class="new-btn"><i data-i="plus"></i>Nuevo</button>
+      <div id="newMenu" class="menu hidden">
+        <button data-act="upload"><i data-i="upload"></i>Subir archivos</button>
+        <button data-act="uploadDir"><i data-i="folderUp"></i>Subir carpeta</button>
+        <hr>
+        <button data-act="mkdir"><i data-i="folderAdd"></i>Nueva carpeta</button>
+      </div>
+    </div>
+    <nav id="nav">
+      <a data-view="drive"><i data-i="drive"></i>Mi unidad</a>
+      <a data-view="shared"><i data-i="people"></i>Compartido</a>
+      <a data-view="recent"><i data-i="clock"></i>Recientes</a>
+      <a data-view="photos"><i data-i="photo"></i>Fotos</a>
+      <a data-view="trash"><i data-i="trash"></i>Papelera</a>
+      <a data-view="users" class="admin-only hidden"><i data-i="shield"></i>Usuarios <span id="pendingBadge" class="badge hidden"></span></a>
+    </nav>
+    <div class="side-stats">
+      <div class="stat"><div class="row"><span>Mi espacio</span><span id="stUser">—</span></div><div class="bar"><div id="barUser"></div></div></div>
+      <div class="stat"><div class="row"><span>Disco</span><span id="stDisk">—</span></div><div class="bar"><div id="barDisk"></div></div></div>
+      <div class="stat"><div class="row"><span>CPU</span><span id="stCpu">—</span></div><div class="bar"><div id="barCpu"></div></div></div>
+      <div class="stat"><div class="row"><span>Temperatura</span><span id="stTemp">—</span></div><div class="bar"><div id="barTemp"></div></div></div>
+      <div class="stat"><div class="row"><span>RAM</span><span id="stMem">—</span></div><div class="bar"><div id="barMem"></div></div></div>
+    </div>
+  </aside>
+  <div id="scrim" class="scrim hidden"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn mobile-only" title="Menú"><i data-i="menu"></i></button>
+      <div class="search"><i data-i="search"></i><input id="search" type="search" placeholder="Buscar en Mi unidad"></div>
+      <button id="themeBtn" class="icon-btn" title="Tema"><i data-i="auto"></i></button>
+      <div class="user-wrap">
+        <button id="userBtn" class="user-btn"><span id="userName"></span><span id="userAvatar" class="avatar"></span></button>
+        <div id="userMenu" class="menu right hidden">
+          <div class="menu-head"><span id="menuAvatar" class="avatar big"></span><b id="menuName"></b></div>
+          <button data-act="avatar"><i data-i="photo"></i>Cambiar foto de perfil</button>
+          <button data-act="avatarDel" id="avatarDelBtn"><i data-i="close"></i>Quitar foto</button>
+          <hr>
+          <button data-act="webdav"><i data-i="phone"></i>Conectar el móvil (WebDAV)</button>
+          <button data-act="password"><i data-i="key"></i>Cambiar contraseña</button>
+          <hr>
+          <button data-act="logout"><i data-i="logout"></i>Salir</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div id="crumbs" class="crumbs"></div>
+      <div id="selBar" class="selbar hidden">
+        <span id="selCount"></span>
+        <button class="icon-btn" data-sel="download" title="Descargar"><i data-i="download"></i></button>
+        <button class="icon-btn" data-sel="share" title="Compartir"><i data-i="share"></i></button>
+        <button class="icon-btn" data-sel="move" title="Mover"><i data-i="move"></i></button>
+        <button class="icon-btn" data-sel="rename" title="Cambiar nombre"><i data-i="edit"></i></button>
+        <button class="icon-btn" data-sel="delete" title="Eliminar"><i data-i="trash"></i></button>
+        <button class="icon-btn" data-sel="restore" title="Restaurar"><i data-i="restore"></i></button>
+        <button class="icon-btn" data-sel="purge" title="Eliminar para siempre"><i data-i="forever"></i></button>
+        <button class="icon-btn" data-sel="clear" title="Quitar selección"><i data-i="close"></i></button>
+      </div>
+      <div class="view-btns">
+        <button id="emptyTrash" class="btn small hidden">Vaciar papelera</button>
+        <button id="gridBtn" class="icon-btn" title="Cuadrícula"><i data-i="grid"></i></button>
+        <button id="listBtn" class="icon-btn" title="Lista"><i data-i="list"></i></button>
+      </div>
+    </div>
+
+    <section id="content" class="content"></section>
+    <div id="dropHint" class="drop-hint hidden"><div>Suelta los archivos para subirlos</div></div>
+  </main>
+</div>
+
+<!-- Panel de subidas -->
+<div id="uploads" class="uploads hidden">
+  <div class="up-head"><span id="upTitle">Subiendo</span>
+    <button class="btn small" id="upClean" title="Quitar de la lista lo ya subido">Limpiar</button>
+    <button class="icon-btn" id="upMin" title="Minimizar"><i data-i="down"></i></button>
+    <button class="icon-btn" id="upClose" title="Cerrar"><i data-i="close"></i></button></div>
+  <div class="bar up-total"><div id="upTotalBar"></div></div>
+  <div id="upFailBox" class="up-fail hidden">
+    <div><b id="upFailCount"></b></div>
+    <div class="up-fail-btns">
+      <button class="btn small primary" id="upRetry">Reintentar fallidos</button>
+      <button class="btn small" id="upCopyFailed">Copiar lista</button>
+      <button class="btn small" id="upDropFailed">Descartar</button>
+    </div>
+    <div id="upRetryHint" class="up-hint hidden">Estos fallaron en una sesión anterior. Para subirlos, vuelve a subir la carpeta y elige «Omitir»: solo se subirá lo que falta.</div>
+  </div>
+  <label class="up-auto"><input type="checkbox" id="upAuto"> Quitar automáticamente lo que ya se ha subido</label>
+  <div id="upList" class="up-list"></div>
+</div>
+
+<!-- Visor -->
+<div id="viewer" class="viewer hidden">
+  <div class="v-top"><span id="vName"></span>
+    <span class="grow"></span>
+    <a id="vDownload" class="icon-btn" title="Descargar"><i data-i="download"></i></a>
+    <button id="vClose" class="icon-btn" title="Cerrar"><i data-i="close"></i></button>
+  </div>
+  <button id="vPrev" class="v-nav left"><i data-i="left"></i></button>
+  <div id="vBody" class="v-body"></div>
+  <button id="vNext" class="v-nav right"><i data-i="right"></i></button>
+</div>
+
+<!-- Diálogo genérico -->
+<div id="dialog" class="dialog-wrap hidden"><div class="dialog" id="dialogBox"></div></div>
+<div id="ctx" class="menu ctx hidden"></div>
+<div id="toast" class="toast hidden"></div>
+
+<input id="fileInput" type="file" multiple hidden>
+<input id="avatarInput" type="file" accept="image/*" hidden>
+<input id="dirInput" type="file" webkitdirectory multiple hidden>
+<script src="/static/app.js"></script>
+</body>
+</html>
