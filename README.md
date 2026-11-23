@@ -150,6 +150,9 @@ servidor.
 
 - Entrar con tu usuario, ver y abrir tus archivos, fotos, vídeos y PDF.
 - **Subir** archivos y fotos desde el móvil (puedes elegir varios a la vez).
+- **Subir carpetas enteras**, con sus subcarpetas: en **Acciones** elige **Subir carpeta**,
+  busca la carpeta y toca **Usar esta carpeta**. (Android no deja elegir la raíz de la memoria
+  ni la carpeta Descargas entera; elige una carpeta de dentro.)
 - **Descargar** archivos y carpetas (.zip): se guardan en la carpeta **Descargas** del móvil.
 - **Cambiar de servidor:** mantén pulsado el icono de DrivePanel y elige **Cambiar servidor**,
   o pulsa **Atrás** en la pantalla principal de la app.
@@ -160,9 +163,7 @@ servidor.
 - **Actualizaciones:** la app mira en GitHub si hay una versión nueva y te avisa. Al descargarla
   se instala encima de la que tienes, sin perder nada.
 
-Necesita Android 7 o más nuevo. En la app de Android
-no se puede elegir una **carpeta entera** para subir (Android no lo permite); para eso usa el
-ordenador, o la subida automática por WebDAV.
+Necesita Android 7 o más nuevo.
 
 <details>
 <summary>Compilar la APK tú mismo</summary>

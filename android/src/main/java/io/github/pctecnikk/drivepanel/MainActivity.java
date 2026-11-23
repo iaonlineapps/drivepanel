@@ -64,6 +64,7 @@ public class MainActivity extends Activity {
     private static final String ACTION_NOVEDADES = "io.github.pctecnikk.drivepanel.NOVEDADES";
     private static final int REQ_FILES = 1;
     private static final int REQ_STORAGE = 2;
+    private static final int REQ_FOLDER = 3;
     private static final int BLUE = 0xFF1A73E8;
 
     private SharedPreferences prefs;
@@ -71,6 +72,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
+    private volatile boolean nextIsFolder;
     private PendingDownload pendingDownload;
     private boolean errorShown;
 
@@ -347,6 +349,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
+                view.evaluateJavascript(Carpeta.JS, null);
             }
         });
 
@@ -361,6 +364,16 @@ public class MainActivity extends Activity {
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = cb;
+                if (nextIsFolder) {
+                    nextIsFolder = false;
+                    try {
+                        startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_FOLDER);
+                        toast("Elige la carpeta y toca «Usar esta carpeta»");
+                        return true;
+                    } catch (ActivityNotFoundException e) {
+                        toast("Este móvil no deja elegir carpetas; elige los archivos");
+                    }
+                }
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 String[] types = params.getAcceptTypes();
@@ -382,6 +395,8 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
+
+        web.addJavascriptInterface(new Bridge(this), "DPAndroid");
 
         web.setDownloadListener(new android.webkit.DownloadListener() { @Override public void onDownloadStart(String url, String userAgent, String disposition, String mime, long length) {
             PendingDownload d = new PendingDownload();
@@ -484,6 +499,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int req, int result, Intent data) {
+        if (req == REQ_FOLDER) {
+            onFolderPicked(result == RESULT_OK && data != null ? data.getData() : null);
+            return;
+        }
         if (req != REQ_FILES) {
             super.onActivityResult(req, result, data);
             return;
@@ -501,6 +520,43 @@ public class MainActivity extends Activity {
         }
         fileCallback.onReceiveValue(uris);
         fileCallback = null;
+    }
+
+    /** Lo que la web puede llamar desde JavaScript (solo avisar de que se va a elegir una carpeta). */
+    public static final class Bridge {
+        private final MainActivity a;
+        Bridge(MainActivity a) { this.a = a; }
+
+        @android.webkit.JavascriptInterface
+        public void nextIsFolder(boolean folder) { a.nextIsFolder = folder; }
+    }
+
+    private void onFolderPicked(final Uri tree) {
+        final ValueCallback<Uri[]> cb = fileCallback;
+        fileCallback = null;
+        if (cb == null) return;
+        if (tree == null) {
+            cb.onReceiveValue(null);
+            return;
+        }
+        toast("Leyendo la carpeta…");
+        final Handler main = new Handler(Looper.getMainLooper());
+        new Thread(new Runnable() { @Override public void run() {
+            final Carpeta.Result r = Carpeta.list(getContentResolver(), tree);
+            main.post(new Runnable() { @Override public void run() {
+                if (r.uris.isEmpty() || web == null) {
+                    toast("La carpeta «" + r.name + "» está vacía o no se puede leer");
+                    cb.onReceiveValue(null);
+                    return;
+                }
+                // Primero las rutas, y cuando la web las tiene, los archivos
+                web.evaluateJavascript("window.__dpRel = " + r.relsJson() + ";", new ValueCallback<String>() {
+                    @Override public void onReceiveValue(String ignored) {
+                        cb.onReceiveValue(r.uriArray());
+                    }
+                });
+            } });
+        } }).start();
     }
 
     // ------------------------------------------------------------------ Atras y ciclo de vida
