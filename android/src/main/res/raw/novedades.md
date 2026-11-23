@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Cada versión que se publica en GitHub lleva la etiqueta android-vX.Y -->
 
+## Versión 1.5
+- La versión de la app se ve abajo del menú lateral y en tu menú de usuario, aunque el servidor todavía no esté actualizado.
+
 ## Versión 1.4
 - La versión se ve siempre: abajo del menú lateral y en tu menú de usuario aparecen la versión del servidor y la de la app.
 

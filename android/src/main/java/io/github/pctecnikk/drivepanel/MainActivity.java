@@ -350,6 +350,7 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
                 view.evaluateJavascript(Carpeta.JS, null);
+                view.evaluateJavascript(versionJs(), null);
             }
         });
 
@@ -407,6 +408,7 @@ public class MainActivity extends Activity {
             startDownload(d);
         } });
 
+        if (state == null) Toast.makeText(this, "DrivePanel · App Android " + Novedades.version(this), Toast.LENGTH_SHORT).show();
         Novedades.check(this, prefs, false);
         if (state != null && web.restoreState(state) != null) return;
         web.loadUrl(base + "/");
@@ -520,6 +522,23 @@ public class MainActivity extends Activity {
         }
         fileCallback.onReceiveValue(uris);
         fileCallback = null;
+    }
+
+    /**
+     * Pone la version de la app en el menu lateral y en el menu de usuario, aunque el servidor
+     * sea antiguo y no lo haga el. Si el servidor ya lo hace (#sideVersion / #menuVersion), no toca nada.
+     */
+    private String versionJs() {
+        String v = "App Android " + Novedades.version(this);
+        return "(function(){var v=" + org.json.JSONObject.quote(v) + ";"
+                + "var st='font-size:11px;color:#80868b;text-align:center;';"
+                + "var sb=document.getElementById('sidebar');"
+                + "if(sb&&!document.getElementById('sideVersion')&&!document.getElementById('dpAppVer')){"
+                + " var d=document.createElement('div');d.id='dpAppVer';d.style.cssText=st+'padding:10px 6px 2px';d.textContent=v;sb.appendChild(d);}"
+                + "var mh=document.querySelector('#userMenu .menu-head');"
+                + "if(mh&&!document.getElementById('menuVersion')&&!document.getElementById('dpAppVer2')){"
+                + " var s=document.createElement('span');s.id='dpAppVer2';s.style.cssText=st+'font-size:12px';s.textContent=v;mh.appendChild(s);}"
+                + "})();";
     }
 
     /** Lo que la web puede llamar desde JavaScript (solo avisar de que se va a elegir una carpeta). */
