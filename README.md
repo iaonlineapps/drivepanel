@@ -182,6 +182,10 @@ sudo apt install default-jdk aapt apksigner zipalign dalvik-exchange
 La APK queda en `android/build/`. Sin más opciones se firma con una clave de prueba; para
 firmarla con la tuya usa `KEYSTORE=... KS_PASS=... KEY_ALIAS=... ./android/build.sh`.
 
+**Cómo se numeran las versiones:** de poco en poco, subiendo el último número. La app va
+por la 1.6, así que las siguientes son 1.6.1, 1.6.2, 1.6.3… y el servidor (`app/VERSION`)
+1.0.1, 1.0.2… Solo se sube el número del medio para un cambio grande.
+
 **Sacar una versión nueva:** sube `versionCode` y `versionName` en
 `android/src/main/AndroidManifest.xml`, apunta las novedades arriba del todo en
 `android/src/main/res/raw/novedades.md`, compila con tu clave, copia la APK a `android/dist/DrivePanel.apk` y súbelo a `main`.

@@ -1,6 +1,6 @@
 # Novedades de la app de DrivePanel para Android
 
-<!-- La versión más nueva va arriba. Cada versión que se publica en GitHub lleva la etiqueta android-vX.Y -->
+<!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
 ## Versión 1.6
 - Panel de descargas, como el de subidas: aparece abajo en cuanto tocas Descargar y muestra cada archivo con su barra, lo que lleva, la velocidad y el tiempo que queda.

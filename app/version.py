@@ -1,7 +1,8 @@
 """Version de DrivePanel que se ve en la web (abajo del menu lateral y en el menu de usuario).
 
 Se toma de la variable DRIVEPANEL_VERSION (la pone la imagen Docker publicada) o, si no,
-del archivo app/VERSION. Al sacar una version nueva, cambia app/VERSION.
+del archivo app/VERSION. Al sacar una version nueva, cambia app/VERSION subiendo
+el ultimo numero: 1.0.1, 1.0.2, 1.0.3...
 """
 import os
 from pathlib import Path
