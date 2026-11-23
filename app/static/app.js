@@ -440,7 +440,12 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (!$('#viewer').classList.contains('hidden')) {
-    if (e.key === 'Escape') closeViewer(); if (e.key === 'ArrowLeft') stepViewer(-1); if (e.key === 'ArrowRight') stepViewer(1); return;
+    const m = viewerMedia();
+    if (e.key === 'Escape') return closeViewer();
+    // con un video o una cancion abiertos: flechas = 10 s atras/adelante, espacio = pausa
+    if (m && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); m.currentTime = Math.max(0, m.currentTime + (e.key === 'ArrowLeft' ? -10 : 10)); return; }
+    if (m && e.key === ' ' && e.target === document.body) { e.preventDefault(); m.paused ? m.play() : m.pause(); return; }
+    if (e.key === 'ArrowLeft') stepViewer(-1); if (e.key === 'ArrowRight') stepViewer(1); return;
   }
   if (!$('#dialog').classList.contains('hidden')) { if (e.key === 'Escape') closeDialog(); return; }
   if (e.target.matches('input')) return;
@@ -574,14 +579,54 @@ async function showViewer() {
   $('#vName').textContent = it.name; $('#vDownload').href = fileUrl(it.path, true); $('#vDownload').onclick = ANDROID_WEB ? (e => { e.preventDefault(); appOrHere(fileUrl(it.path, true), it.name); }) : null;
   $('#vPrev').style.visibility = vIdx > 0 ? '' : 'hidden'; $('#vNext').style.visibility = vIdx < vList.length - 1 ? '' : 'hidden';
   if (it.kind === 'image') b.innerHTML = `<img src="${url}" alt="">`;
-  else if (it.kind === 'video') b.innerHTML = `<video src="${url}" controls autoplay playsinline preload="metadata"></video>`;
-  else if (it.kind === 'audio') b.innerHTML = `<audio src="${url}" controls autoplay></audio>`;
+  else if (it.kind === 'video' || it.kind === 'audio') return showMedia(it, b, url);
   else if (it.kind === 'pdf') b.innerHTML = `<iframe src="${url}"></iframe>`;
   else if (it.kind === 'text' && it.size < 2e6) { b.innerHTML = '<pre>Cargando…</pre>'; try { const t = await (await fetch(url)).text(); b.querySelector('pre').textContent = t; } catch (e) {} }
   else b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>No hay vista previa para este archivo</p><a class="btn primary" href="${fileUrl(it.path, true)}">Descargar (${fmtSize(it.size)})</a></div>`;
   paintIcons(b);
   const nx = vList[vIdx + 1]; if (nx && nx.kind === 'image') new Image().src = fileUrl(nx.path);
 }
+/* ---------- reproductor de video y audio ----------
+   El video se ve sin descargarlo entero: el navegador pide al servidor solo el trozo que
+   necesita (peticiones "Range"), asi se puede adelantar y la Pi no convierte nada.
+   Si el formato no lo entiende el navegador (AVI, WMV...) se explica y se ofrece descargarlo. */
+const NO_PLAY = {'.avi':'AVI', '.wmv':'WMV', '.flv':'FLV', '.mpg':'MPEG', '.mpeg':'MPEG', '.mts':'AVCHD', '.m2ts':'AVCHD', '.vob':'DVD', '.rm':'RealMedia', '.rmvb':'RealMedia', '.wma':'WMA', '.ape':'APE', '.ac3':'AC3'};
+const extOf = n => (n.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+const posKey = it => 'dp-pos:' + (S.share || '') + ':' + it.path;
+function fmtDur(t) { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = String(t % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`; }
+function cantPlay(it, b, why) {
+  const fmt = NO_PLAY[extOf(it.name)] || extOf(it.name).slice(1).toUpperCase();
+  b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p><b>Este ${it.kind === 'audio' ? 'audio' : 'vídeo'} no se puede ver en el navegador</b></p>
+    <p class="np-why">${why || `El formato ${esc(fmt)} no lo reproducen los navegadores.`} Descárgalo y ábrelo con un reproductor como VLC.</p>
+    <a class="btn primary" href="${fileUrl(it.path, true)}">Descargar (${fmtSize(it.size)})</a></div>`;
+  paintIcons(b);
+  const a = b.querySelector('a'); if (ANDROID_WEB) a.onclick = e => { e.preventDefault(); appOrHere(fileUrl(it.path, true), it.name); };
+}
+function showMedia(it, b, url) {
+  const video = it.kind === 'video';
+  b.innerHTML = video ? `<video src="${url}" controls autoplay playsinline preload="metadata"></video>`
+    : `<div class="audio-card">${ic('audio', 'big-ic ic-audio')}<div class="ac-name">${esc(it.name)}</div><audio src="${url}" controls autoplay preload="metadata"></audio></div>`;
+  paintIcons(b);
+  const m = b.querySelector(video ? 'video' : 'audio');
+  m.addEventListener('error', () => { if (vList[vIdx] === it) cantPlay(it, b); });
+  m.addEventListener('loadedmetadata', () => {
+    // el navegador abrio el archivo pero no sabe dibujar la imagen (p. ej. HEVC en algunos PC)
+    if (video && !m.videoWidth) toast('Solo se oye el sonido: el navegador no entiende la imagen de este vídeo', 6000);
+    // seguir donde lo dejaste (solo en cosas largas, de mas de 3 minutos)
+    const t = +localStorage.getItem(posKey(it)) || 0;
+    if (m.duration > 180 && t > 15 && t < m.duration - 15) { m.currentTime = t; toast('Sigue donde lo dejaste (' + fmtDur(t) + ')'); }
+  });
+  let last = 0;
+  m.addEventListener('timeupdate', () => {
+    if (m.duration > 180 && Math.abs(m.currentTime - last) > 5) { last = m.currentTime; localStorage.setItem(posKey(it), Math.floor(last)); }
+  });
+  m.addEventListener('ended', () => {
+    localStorage.removeItem(posKey(it));
+    // en una carpeta de musica, al acabar una cancion empieza la siguiente
+    if (!video && vList[vIdx] === it && vList[vIdx + 1] && vList[vIdx + 1].kind === 'audio') stepViewer(1);
+  });
+}
+function viewerMedia() { return $('#vBody video, #vBody audio'); }
 function stepViewer(d) { const n = vIdx + d; if (n >= 0 && n < vList.length) { vIdx = n; showViewer(); } }
 function closeViewer() { $('#viewer').classList.add('hidden'); $('#vBody').innerHTML = ''; }
 $('#vClose').onclick = closeViewer; $('#vPrev').onclick = () => stepViewer(-1); $('#vNext').onclick = () => stepViewer(1);

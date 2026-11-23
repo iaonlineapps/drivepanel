@@ -4,7 +4,12 @@ from fastapi import HTTPException
 from .config import STORAGE, TRASH, CACHE
 
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".heif"}
-VIDEO_EXT = {".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi", ".3gp"}
+VIDEO_EXT = {".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi", ".3gp", ".ogv",
+             ".wmv", ".flv", ".mpg", ".mpeg", ".mts", ".m2ts", ".vob", ".rmvb"}
+# tipos que Python no conoce bien (o confunde) y que hacen falta para el reproductor
+for _t, _e in (("video/3gpp", ".3gp"), ("video/mp4", ".m4v"), ("video/ogg", ".ogv"), ("audio/mp4", ".m4a"),
+               ("audio/ogg", ".opus"), ("audio/flac", ".flac"), ("video/mp2t", ".mts"), ("video/mp2t", ".m2ts")):
+    mimetypes.add_type(_t, _e)
 THUMB_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
 
