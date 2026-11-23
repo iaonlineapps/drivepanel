@@ -74,6 +74,12 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private volatile boolean nextIsFolder;
     private Descargas descargas;
+    private Compartir pendingShare;          // compartido antes de tener servidor
+    private volatile Compartir activeShare;  // el que la web esta subiendo
+    private String activeShareFolder;
+    private boolean shareInjected;
+    private static final String KEY_START = "start_view";
+    private static final String KEY_SHARE_FOLDER = "share_folder";
     private PendingDownload pendingDownload;
     private boolean errorShown;
 
@@ -100,6 +106,7 @@ public class MainActivity extends Activity {
         }
         if (state == null) Novedades.showIfUpdated(this, prefs, url == null);
         if (getIntent() != null && ACTION_NOVEDADES.equals(getIntent().getAction())) Novedades.show(this, prefs, null);
+        if (state == null && Compartir.isShare(getIntent())) handleShare(getIntent());
     }
 
     private static boolean isChangeServer(Intent i) {
@@ -111,6 +118,71 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         if (isChangeServer(intent)) showSetup(prefs.getString(KEY_URL, null), null);
         else if (ACTION_NOVEDADES.equals(intent.getAction())) Novedades.show(this, prefs, null);
+        else if (Compartir.isShare(intent)) handleShare(intent);
+    }
+
+    // ------------------------------------------------------------------ Compartir con DrivePanel
+
+    private void handleShare(Intent intent) {
+        Compartir c = Compartir.from(intent, getContentResolver());
+        if (c == null) {
+            toast("Solo se pueden compartir fotos y archivos con DrivePanel");
+            return;
+        }
+        String url = prefs.getString(KEY_URL, null);
+        if (url == null) {
+            pendingShare = c;
+            toast("Primero conecta con tu servidor DrivePanel; luego se suben los archivos");
+            return;
+        }
+        if (web == null) showWeb(url, null);
+        askShareFolder(c);
+    }
+
+    private void askShareFolder(final Compartir c) {
+        int n = c.files.size();
+        long total = c.totalSize();
+        final EditText folder = new EditText(this);
+        folder.setSingleLine(true);
+        folder.setText(prefs.getString(KEY_SHARE_FOLDER, "Del móvil"));
+        folder.setSelectAllOnFocus(true);
+        folder.setHint("Vacío = Mi unidad");
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(22), dp(4), dp(22), 0);
+        TextView t = new TextView(this);
+        t.setText((n == 1 ? "1 archivo" : n + " archivos") + (total > 0 ? " (" + Descargas.size(total) + ")" : "")
+                + ".\n\nCarpeta de DrivePanel donde se guardan (se crea si no existe; vacío = Mi unidad). "
+                + "Para una subcarpeta usa /, por ejemplo Fotos/Viaje.");
+        t.setTextSize(14);
+        box.addView(t);
+        box.addView(folder);
+        new AlertDialog.Builder(this)
+                .setTitle("Subir a DrivePanel")
+                .setView(box)
+                .setPositiveButton("Subir", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                    String f = folder.getText().toString().trim().replace('\\', '/');
+                    while (f.startsWith("/")) f = f.substring(1);
+                    while (f.endsWith("/")) f = f.substring(0, f.length() - 1);
+                    prefs.edit().putString(KEY_SHARE_FOLDER, f).apply();
+                    startShareUpload(c, f);
+                } })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void startShareUpload(Compartir c, String folder) {
+        activeShare = c;
+        activeShareFolder = folder;
+        shareInjected = false;
+        if (web != null && web.getProgress() >= 100) injectShare();
+        // si no, se hace en onPageFinished
+    }
+
+    private void injectShare() {
+        if (web == null || activeShare == null || shareInjected) return;
+        shareInjected = true;
+        web.evaluateJavascript(activeShare.js(activeShareFolder), null);
     }
 
     // ------------------------------------------------------------------ Pantalla del servidor
@@ -316,6 +388,11 @@ public class MainActivity extends Activity {
     private void saveAndOpen(String url) {
         prefs.edit().putString(KEY_URL, url).apply();
         showWeb(url, null);
+        if (pendingShare != null) {
+            Compartir c = pendingShare;
+            pendingShare = null;
+            askShareFolder(c);
+        }
     }
 
     // ------------------------------------------------------------------ La web
@@ -349,6 +426,15 @@ public class MainActivity extends Activity {
 
         web.setWebViewClient(new WebViewClient() {
             @Override
+            public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+                Compartir c = activeShare;
+                if (c != null && req.getUrl().getPath() != null && req.getUrl().getPath().startsWith(Compartir.PATH)) {
+                    return c.serve(getContentResolver(), req.getUrl());
+                }
+                return null;
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
                 String scheme = u.getScheme();
@@ -374,6 +460,7 @@ public class MainActivity extends Activity {
                 CookieManager.getInstance().flush();
                 view.evaluateJavascript(Carpeta.JS, null);
                 view.evaluateJavascript(versionJs(), null);
+                injectShare();
             }
         });
 
@@ -434,7 +521,28 @@ public class MainActivity extends Activity {
         if (state == null) Toast.makeText(this, "DrivePanel · App Android " + Novedades.version(this), Toast.LENGTH_SHORT).show();
         Novedades.check(this, prefs, false);
         if (state != null && web.restoreState(state) != null) return;
-        web.loadUrl(base + "/");
+        web.loadUrl(base + "/#/" + startView());
+    }
+
+    /** Pantalla al abrir la app: "panel" (Panel de actividad) o "drive" (Mi unidad). */
+    private String startView() {
+        return "drive".equals(prefs.getString(KEY_START, "panel")) ? "drive" : "panel";
+    }
+
+    private void chooseStartView() {
+        final String[] keys = {"panel", "drive"};
+        int cur = "drive".equals(startView()) ? 1 : 0;
+        new AlertDialog.Builder(this)
+                .setTitle("Al abrir la app, mostrar")
+                .setSingleChoiceItems(new CharSequence[]{"Panel de actividad", "Mi unidad"}, cur, new android.content.DialogInterface.OnClickListener() {
+                    @Override public void onClick(android.content.DialogInterface d, int which) {
+                        prefs.edit().putString(KEY_START, keys[which]).apply();
+                        d.dismiss();
+                        toast("Al abrir la app verás: " + (which == 0 ? "Panel de actividad" : "Mi unidad"));
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
     }
 
     private void showConnectionError(final String base) {
@@ -632,10 +740,11 @@ public class MainActivity extends Activity {
         }
         new AlertDialog.Builder(this)
                 .setTitle("DrivePanel")
-                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades (versión " + Novedades.version(this) + ")"}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
+                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades (versión " + Novedades.version(this) + ")", "Pantalla al abrir: " + ("drive".equals(startView()) ? "Mi unidad" : "Panel de actividad")}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
                     if (which == 0) finish();
                     else if (which == 1) showSetup(prefs.getString(KEY_URL, null), null);
                     else if (which == 3) Novedades.show(MainActivity.this, prefs, null);
+                    else if (which == 4) chooseStartView();
                     else if (web != null) web.reload();
                 } })
                 .setNegativeButton("Cancelar", null)
