@@ -48,6 +48,34 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
 ---
 
+## Cómo funcionan las subidas y las descargas
+
+Explicado en sencillo, para que sepas qué pasa cuando subes algo:
+
+- **Se sube en trozos de 32 MB.** Un archivo grande (un vídeo de 4 GB, por ejemplo) no se
+  manda de golpe: se parte en trozos de 32 MB y se envían uno detrás de otro. El servidor
+  los va juntando y, al llegar el último, el archivo aparece en su carpeta.
+- **Si se corta, solo se repite el trozo que falló.** Si se cae el Wi-Fi o el servidor tarda,
+  la web lo vuelve a intentar sola (hasta 5 veces, esperando un poco más cada vez). No
+  empieza el archivo desde cero: sigue desde el último trozo que llegó bien.
+- **Si aun así falla,** el archivo se queda en el panel de subidas en rojo, con el motivo y un
+  botón **Reintentar fallidos** que continúa desde donde se quedó. Lo subido a medias que
+  nadie continúa se borra solo a los 2 días.
+- **Se suben 2 archivos a la vez.** El resto espera en cola. Así una Raspberry Pi va
+  holgada y no se atasca.
+- **Archivos repetidos:** antes de subir, DrivePanel mira si ya existen en la carpeta y te
+  pregunta, como Windows: omitir, reemplazar o conservar los dos.
+- **En directo** ves cuánto lleva cada archivo, la velocidad y el tiempo que queda.
+- **Papelera:** lo que borras (también por WebDAV) no desaparece, va a la **Papelera**.
+  Desde ahí lo restauras o lo borras para siempre. Lo que está en la Papelera sigue
+  ocupando espacio hasta que la vacías.
+- **Descargas:** desde la web, una carpeta o varios archivos se descargan juntos en un .zip.
+  En la **app Android** las descargas van a la carpeta **Descargas** del móvil y abajo sale
+  un **panel de descargas** con lo que lleva cada una, la velocidad, el tiempo que queda y
+  botones para cancelar, reintentar o abrir.
+
+---
+
 ## 1. Requisitos
 
 - Una Raspberry Pi 4/5 (o cualquier equipo Linux) con **Docker** y **Docker Compose**.
@@ -204,6 +232,30 @@ GitHub crea solo la Release `android-vX.Y` con la APK y las novedades. La app av
 anterior.
 
 </details>
+
+### ¿Y en iPhone o iPad?
+
+La app es **solo para Android**. En iPhone y iPad no hay app, pero puedes usar DrivePanel
+desde el navegador y dejarlo en la pantalla de inicio como si fuera una app:
+
+1. Abre **Safari** y entra en la dirección de tu DrivePanel (la misma que usas en el PC).
+2. Inicia sesión con tu usuario.
+3. Toca el botón **Compartir** (el cuadrado con la flecha hacia arriba).
+4. Baja y toca **Añadir a pantalla de inicio**, y luego **Añadir**.
+5. Ya tienes el icono de DrivePanel en la pantalla de inicio: se abre a pantalla completa.
+
+Funciona casi todo: ver y abrir archivos, fotos y vídeos, subir archivos y fotos, crear
+carpetas, compartir enlaces y el Panel de actividad. **Lo que no hay en iPhone:**
+
+- **El menú Compartir del sistema:** no puedes elegir "DrivePanel" al compartir desde la
+  galería o WhatsApp. Abre DrivePanel y súbelo desde ahí.
+- **Descargas en segundo plano y el panel de descargas:** las descargas las hace Safari y
+  se cortan si cierras Safari o bloqueas el iPhone durante un rato. Lo mismo con las subidas:
+  deja la pantalla abierta hasta que terminen.
+- **Subir carpetas enteras:** iOS solo deja elegir archivos sueltos o fotos.
+
+Para que las fotos se suban solas también en iPhone, usa **WebDAV** con una app como
+PhotoSync (mira la sección de WebDAV más abajo).
 
 ## 6. Subida automática desde el móvil (WebDAV)
 
