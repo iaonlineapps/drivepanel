@@ -184,9 +184,8 @@ firmarla con la tuya usa `KEYSTORE=... KS_PASS=... KEY_ALIAS=... ./android/build
 
 **Sacar una versión nueva:** sube `versionCode` y `versionName` en
 `android/src/main/AndroidManifest.xml`, apunta las novedades arriba del todo en
-`android/src/main/res/raw/novedades.md`, compila con tu clave, copia la APK a `android/dist/DrivePanel.apk` y sube una etiqueta
-`android-vX.Y` (por ejemplo `git tag android-v1.6 && git push origin android-v1.6`). GitHub
-crea solo la Release con la APK y las novedades. La app avisa sola a quien tenga una versión
+`android/src/main/res/raw/novedades.md`, compila con tu clave, copia la APK a `android/dist/DrivePanel.apk` y súbelo a `main`.
+GitHub crea solo la Release `android-vX.Y` con la APK y las novedades. La app avisa sola a quien tenga una versión
 anterior.
 
 </details>
