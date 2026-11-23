@@ -154,6 +154,8 @@ servidor.
   busca la carpeta y toca **Usar esta carpeta**. (Android no deja elegir la raíz de la memoria
   ni la carpeta Descargas entera; elige una carpeta de dentro.)
 - **Descargar** archivos y carpetas (.zip): se guardan en la carpeta **Descargas** del móvil.
+  Abajo sale un **panel de descargas** con lo que lleva cada archivo, la velocidad y el tiempo
+  que queda, y botones para cancelar, reintentar o abrir.
 - **Cambiar de servidor:** mantén pulsado el icono de DrivePanel y elige **Cambiar servidor**,
   o pulsa **Atrás** en la pantalla principal de la app.
 - Si el servidor no responde, la app te deja **reintentar** o cambiar la dirección.

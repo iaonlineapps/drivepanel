@@ -2,6 +2,11 @@
 
 <!-- La versión más nueva va arriba. Cada versión que se publica en GitHub lleva la etiqueta android-vX.Y -->
 
+## Versión 1.6
+- Panel de descargas, como el de subidas: aparece abajo en cuanto tocas Descargar y muestra cada archivo con su barra, lo que lleva, la velocidad y el tiempo que queda.
+- Desde el panel puedes cancelar una descarga, reintentarla si falla o abrir el archivo cuando termina.
+- Las descargas siguen aunque cierres la app; al volver, el panel te enseña cómo van.
+
 ## Versión 1.5
 - La versión de la app se ve abajo del menú lateral y en tu menú de usuario, aunque el servidor todavía no esté actualizado.
 

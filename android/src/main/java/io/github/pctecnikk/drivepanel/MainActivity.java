@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
     private volatile boolean nextIsFolder;
+    private Descargas descargas;
     private PendingDownload pendingDownload;
     private boolean errorShown;
 
@@ -87,6 +88,9 @@ public class MainActivity extends Activity {
         root = new FrameLayout(this);
         root.setBackgroundColor(0xFFF8FAFD);
         setContentView(root);
+        descargas = new Descargas(this, prefs, new Descargas.Enqueuer() {
+            @Override public long enqueue(Descargas.Item it) { return enqueueDownload(it); }
+        });
 
         String url = prefs.getString(KEY_URL, null);
         if (url == null || isChangeServer(getIntent())) {
@@ -306,6 +310,7 @@ public class MainActivity extends Activity {
         progress.setMax(100);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(progress, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
+        descargas.attach(root);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -438,12 +443,25 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
             return;
         }
+        Descargas.Item it = new Descargas.Item();
+        it.name = fileName(d.url, d.disposition, d.mime);
+        it.url = d.url;
+        it.userAgent = d.userAgent;
+        it.mime = d.mime;
+        long id = enqueueDownload(it);
+        if (id < 0) return;
+        it.id = id;
+        descargas.add(it);
+    }
+
+    /** Pide la descarga al administrador de descargas de Android. Devuelve su id o -1. */
+    private long enqueueDownload(Descargas.Item d) {
         try {
-            String name = fileName(d.url, d.disposition, d.mime);
+            String name = d.name;
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(d.url));
             String cookies = CookieManager.getInstance().getCookie(d.url);
             if (cookies != null) r.addRequestHeader("Cookie", cookies);
-            if (d.userAgent != null) r.addRequestHeader("User-Agent", d.userAgent);
+            if (d.userAgent != null && !d.userAgent.isEmpty()) r.addRequestHeader("User-Agent", d.userAgent);
             r.setTitle(name);
             r.setDescription("DrivePanel");
             String mime = d.mime;
@@ -452,14 +470,14 @@ public class MainActivity extends Activity {
                 String guess = ext == null ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.toLowerCase());
                 if (guess != null) mime = guess;
             }
-            if (mime != null) r.setMimeType(mime);
+            if (mime != null && !mime.isEmpty()) r.setMimeType(mime);
             r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
             DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            dm.enqueue(r);
-            toast("Descargando " + name + "\nLo encontrarás en la carpeta Descargas");
+            return dm.enqueue(r);
         } catch (Exception e) {
             toast("No se ha podido descargar: " + e.getMessage());
+            return -1;
         }
     }
 
@@ -617,12 +635,14 @@ public class MainActivity extends Activity {
         super.onPause();
         CookieManager.getInstance().flush();
         if (web != null) web.onPause();
+        descargas.stop();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         if (web != null) web.onResume();
+        descargas.start();
     }
 
     @Override
