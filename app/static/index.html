@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="DrivePanel">
 <link rel="stylesheet" href="/static/style.css">
 <script>
-  (function(){try{var t=localStorage.getItem('dp-theme')||'auto';document.documentElement.dataset.theme=t;}catch(e){}})();
+  (function(){try{var t=localStorage.getItem('dp-theme')||'auto';document.documentElement.dataset.theme=t;var a=localStorage.getItem('dp-accent');if(a)document.documentElement.dataset.accent=a;}catch(e){}})();
 </script>
 </head>
 <body>
@@ -51,6 +51,7 @@
       <a data-view="photos"><i data-i="photo"></i>Fotos</a>
       <a data-view="panel"><i data-i="chart"></i>Panel de actividad</a>
       <a data-view="trash"><i data-i="trash"></i>Papelera</a>
+      <a data-view="settings"><i data-i="settings"></i>Ajustes</a>
       <a data-view="users" class="admin-only hidden"><i data-i="shield"></i>Usuarios <span id="pendingBadge" class="badge hidden"></span></a>
     </nav>
     <div class="side-stats">
@@ -135,7 +136,12 @@
     <button class="icon-btn" id="upMin" title="Minimizar"><i data-i="down"></i></button>
     <button class="icon-btn" id="upClose" title="Cerrar"><i data-i="close"></i></button></div>
   <div class="bar up-total"><div id="upTotalBar"></div></div>
-  <div id="upSpeed" class="up-speed hidden"><span id="upRate"></span><span id="upEta"></span><span id="upBytes"></span></div>
+  <div id="upSpeed" class="up-speed hidden">
+    <div class="up-pct"><b id="upPct">0%</b> completado</div>
+    <div class="up-now ell">Subiendo: <b id="upNow"></b></div>
+    <div class="up-graph"><svg id="upGraph" viewBox="0 0 300 64" preserveAspectRatio="none"></svg><span id="upRate"></span></div>
+    <div class="up-facts"><span><small>Tiempo restante</small><b id="upEta">—</b></span><span><small>Elementos restantes</small><b id="upLeft">—</b></span><span><small>Subido</small><b id="upBytes">—</b></span></div>
+  </div>
   <div id="upFailBox" class="up-fail hidden">
     <div><b id="upFailCount"></b></div>
     <div class="up-fail-btns">

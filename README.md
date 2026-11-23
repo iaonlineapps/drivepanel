@@ -61,11 +61,23 @@ Explicado en sencillo, para que sepas qué pasa cuando subes algo:
 - **Si aun así falla,** el archivo se queda en el panel de subidas en rojo, con el motivo y un
   botón **Reintentar fallidos** que continúa desde donde se quedó. Lo subido a medias que
   nadie continúa se borra solo a los 2 días.
-- **Se suben 2 archivos a la vez.** El resto espera en cola. Así una Raspberry Pi va
-  holgada y no se atasca.
+- **Se suben 2 archivos a la vez** (con el perfil Raspberry Pi 4). El resto espera en cola.
+  El administrador lo cambia en **Ajustes → Máquina donde funciona DrivePanel**:
+
+  | Perfil | Subidas a la vez | Tamaño de cada trozo | Miniaturas a la vez |
+  |---|---|---|---|
+  | Raspberry Pi 3 (o Pi 2 / Zero 2) | 1 | 16 MB | 1 |
+  | Raspberry Pi 4 (o Pi 400) | 2 | 32 MB | 2 |
+  | Raspberry Pi 5 | 3 | 32 MB | 3 |
+  | PC o servidor (también Proxmox, Debian, Ubuntu…) | 4 | 64 MB | 4 |
+  | Personalizado | 1 a 6 | 8 a 64 MB | 1 a 4 |
+
+  DrivePanel detecta en qué máquina está y te sugiere el perfil. Si no eliges ninguno, usa
+  el sugerido.
 - **Archivos repetidos:** antes de subir, DrivePanel mira si ya existen en la carpeta y te
   pregunta, como Windows: omitir, reemplazar o conservar los dos.
-- **En directo** ves cuánto lleva cada archivo, la velocidad y el tiempo que queda.
+- **En directo**, como la ventana de copiar de Windows 11: el porcentaje, el archivo que se
+  está subiendo, una gráfica de la velocidad, el tiempo que queda y los elementos que faltan.
 - **Papelera:** lo que borras (también por WebDAV) no desaparece, va a la **Papelera**.
   Desde ahí lo restauras o lo borras para siempre. Lo que está en la Papelera sigue
   ocupando espacio hasta que la vacías.
@@ -245,7 +257,7 @@ desde el navegador y dejarlo en la pantalla de inicio como si fuera una app:
 5. Ya tienes el icono de DrivePanel en la pantalla de inicio: se abre a pantalla completa.
 
 Funciona casi todo: ver y abrir archivos, fotos y vídeos, subir archivos y fotos, crear
-carpetas, compartir enlaces y el Panel de actividad. **Lo que no hay en iPhone:**
+carpetas, compartir enlaces, el Panel de actividad y los Ajustes. **Lo que no hay en iPhone:**
 
 - **El menú Compartir del sistema:** no puedes elegir "DrivePanel" al compartir desde la
   galería o WhatsApp. Abre DrivePanel y súbelo desde ahí.

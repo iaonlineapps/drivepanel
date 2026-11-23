@@ -51,6 +51,9 @@ const P = {
   sheet:'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 8h-8v8H9v-8H5V9h4V5h2v4h8v2z',
   chart:'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
   bolt:'M7 2v11h3v9l7-12h-4l4-8z',
+  settings:'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
+  memory:'M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z',
+  palette:'M12 3a9 9 0 000 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
   refresh:'M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
   info:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
   storage:'M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z',
@@ -118,7 +121,8 @@ async function start() {
   try { S.me = await api('/api/me'); } catch (e) { showAuth(); return; }
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#userName').textContent = S.me.username; $('#menuName').textContent = S.me.username;
-  paintAvatars(); paintVersion();
+  paintAvatars(); paintVersion(); applyAccent(S.me.accent);
+  if (S.me.chunk_mb) CHUNK = S.me.chunk_mb * 1024 * 1024;
   $$('.admin-only').forEach(e => e.classList.toggle('hidden', !S.me.is_admin));
   updateBadge(S.me.pending);
   route(); loadStats();
@@ -159,14 +163,15 @@ function route() {
   if (!S.me) return;
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   // sin nada en la direccion (al entrar en la web) se abre la pantalla de inicio elegida
-  const view = ['drive','shared','recent','photos','trash','users','panel'].includes(parts[0]) ? parts[0] : !parts[0] ? homeView() : 'drive';
+  const view = ['drive','shared','recent','photos','trash','users','panel','settings'].includes(parts[0]) ? parts[0] : !parts[0] ? homeView() : 'drive';
   if (view === 'users' && !S.me.is_admin) return go('drive');
   S.view = view; S.share = null; S.path = '';
   if (view === 'drive') S.path = parts.slice(1).filter(Boolean).join('/');
   if (view === 'shared' && parts[1]) { S.share = +parts[1]; S.path = parts.slice(2).filter(Boolean).join('/'); }
   S.q = ''; $('#search').value = '';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
-  $('#gridBtn').classList.toggle('hidden', view === 'panel'); $('#listBtn').classList.toggle('hidden', view === 'panel');
+  const noMode = ['panel', 'settings', 'users'].includes(view);
+  $('#gridBtn').classList.toggle('hidden', noMode); $('#listBtn').classList.toggle('hidden', noMode);
   closeSidebar(); load();
 }
 
@@ -182,6 +187,7 @@ async function load() {
     else if (S.view === 'trash') data = await api('/api/trash');
     else if (S.view === 'users') return renderUsers();
     else if (S.view === 'panel') return renderPanel();
+    else if (S.view === 'settings') return renderSettings();
     else if (S.view === 'shared') {
       if (S.share) data = await api(`/api/list?path=${enc(S.path)}&share=${S.share}`);
       else { const r = await api('/api/shares'); S.sharesData = r; data = {items: r.withme}; }
@@ -194,7 +200,7 @@ async function load() {
 /* ---------- pintar ---------- */
 function crumbs() {
   const el = $('#crumbs');
-  const label = {drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad'}[S.view];
+  const label = {drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad', settings:'Ajustes'}[S.view];
   if (S.q) { el.innerHTML = `<button>Resultados de «${esc(S.q)}»</button>`; return; }
   let html = `<button data-p="" data-root="1">${label}</button>`;
   if (S.view === 'shared' && S.share) {
@@ -548,7 +554,7 @@ $('#vClose').onclick = closeViewer; $('#vPrev').onclick = () => stepViewer(-1); 
    Cada archivo se manda en trozos de 32 MB con reintentos automaticos, asi una subida
    grande (o pasando por un proxy inverso) no se corta. Los que fallan se quedan en la lista con
    su motivo y se pueden reintentar; la lista de fallidos se guarda tambien en el navegador. */
-const queue = []; let active = 0, refreshT;
+const queue = [], running = new Set(); let active = 0, refreshT;  // running: lo que se esta subiendo ahora
 const UP = {total: 0, done: 0, skipped: 0, failed: [], bytesTotal: 0, bytesDone: 0, sent: 0};
 
 /* velocidad de subida: media de los ultimos 5 segundos de bytes realmente enviados */
@@ -566,18 +572,45 @@ function rateOf(samples, now, value) {
   const [t0, v0] = samples[0], dt = (now - t0) / 1000;
   return dt >= 0.8 ? Math.max(0, (value - v0) / dt) : null;
 }
-const speedSamples = [];
+const speedSamples = [], speedHist = [];  // speedHist: [porcentaje hecho, velocidad] para la grafica
+/* grafica como la ventana de copiar de Windows 11: de izquierda a derecha el avance (0 a 100 %),
+   la altura es la velocidad en cada momento y la linea marca la velocidad actual */
+function drawUpGraph(pct, r) {
+  const W = 300, H = 64, svg = $('#upGraph');
+  const max = Math.max(1, r || 0, ...speedHist.map(p => p[1])) * 1.5;
+  const pts = (speedHist.length ? [[0, speedHist[0][1]], ...speedHist] : []).map(([p, v]) => [p / 100 * W, H - v / max * H]);
+  let area = '', line = '';
+  if (pts.length) {
+    const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
+    area = `<path class="g-area" d="${d}L${pts[pts.length - 1][0].toFixed(1)},${H}L${pts[0][0].toFixed(1)},${H}Z"/><path class="g-line" d="${d}"/>`;
+  }
+  const y = r ? H - r / max * H : H;
+  svg.innerHTML = `<rect class="g-done" x="0" y="0" width="${(pct / 100 * W).toFixed(1)}" height="${H}"/>${area}` +
+    (r ? `<line class="g-now" x1="0" x2="${W}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/>` : '');
+  const lab = $('#upRate'); lab.style.top = Math.max(0, Math.min(H - 18, y - 18)) + 'px';
+}
 setInterval(() => {
   const busy = active || queue.length, box = $('#upSpeed');
-  if (!busy) { speedSamples.length = 0; box.classList.add('hidden'); return; }
-  const r = rateOf(speedSamples, Date.now(), UP.sent);
+  if (!busy) { speedSamples.length = 0; speedHist.length = 0; UP.last = null; box.classList.add('hidden'); return; }
+  const t = Date.now(), r = rateOf(speedSamples, t, UP.sent);
   box.classList.remove('hidden');
-  $('#upRate').textContent = r == null ? 'Midiendo velocidad…' : '↑ ' + fmtRate(r);
+  const pct = UP.bytesTotal ? Math.min(100, UP.bytesDone / UP.bytesTotal * 100) : 0;
+  // la grafica usa la velocidad de cada segundo (sube y baja como en Windows); el texto y el tiempo, la media de 5 s
+  const L = UP.last; UP.last = [t, UP.sent];
+  if (L && t > L[0]) { const inst = (UP.sent - L[1]) / ((t - L[0]) / 1000), prev = speedHist.length ? speedHist[speedHist.length - 1][1] : inst;
+    const x = speedHist.length ? Math.max(pct, speedHist[speedHist.length - 1][0]) : pct;  // la grafica solo avanza
+    speedHist.push([x, prev * 0.4 + inst * 0.6]); if (speedHist.length > 600) speedHist.splice(0, speedHist.length - 600); }
+  $('#upPct').textContent = Math.floor(pct) + '%';
+  $('#upNow').textContent = UP.current || '…'; $('#upNow').title = UP.current || '';
+  $('#upRate').textContent = r == null ? 'Midiendo velocidad…' : 'Velocidad: ' + fmtRate(r);
   const left = Math.max(0, UP.bytesTotal - UP.bytesDone);
-  $('#upEta').textContent = r ? fmtEta(left / r) : '';
+  $('#upEta').textContent = r ? fmtEta(left / r).replace(/^quedan /, '') || '—' : 'Calculando…';
+  const n = Math.max(0, UP.total - UP.done - UP.skipped - UP.failed.length);
+  $('#upLeft').textContent = `${n} (${fmtSize(left)})`;
   $('#upBytes').textContent = `${fmtSize(UP.bytesDone)} de ${fmtSize(UP.bytesTotal)}`;
+  drawUpGraph(pct, r);
 }, 1000);
-const MAX_PARALLEL = 2, CHUNK = 32 * 1024 * 1024, MIN_CHUNK = 1024 * 1024, MAX_TRIES = 6;
+let CHUNK = 32 * 1024 * 1024; const MIN_CHUNK = 1024 * 1024, MAX_TRIES = 6;
 const NO_RETRY = new Set([400, 401, 403, 404, 413, 507]);
 
 async function enqueue(files, base) {
@@ -668,8 +701,10 @@ function makeRow(job) {
 }
 
 function pump() {
-  while (active < MAX_PARALLEL && queue.length) {
-    const job = queue.shift(); active++;
+  // cuantas a la vez lo decide el administrador (Ajustes > Máquina); 2 si no se sabe
+  const maxParallel = Math.min(6, Math.max(1, +(S.me && S.me.upload_parallel) || 2));
+  while (active < maxParallel && queue.length) {
+    const job = queue.shift(); active++; running.add(job); UP.current = job.rel;
     job.row = job.row || makeRow(job);
     job.row.classList.remove('failed', 'done');
     job.row.querySelector('.st').className = 'st';
@@ -688,7 +723,9 @@ function pump() {
         UP.failed.push({rel: job.rel, base: job.base, error: res.error, file: job.file, conflict: job.conflict, row: job.row,
                         uid: job.uid, offset: job.offset || 0, chunk: job.chunk});
       }
-      active--; updUpTitle(); pump();
+      active--; running.delete(job);
+      if (UP.current === job.rel) UP.current = running.size ? [...running].pop().rel : '';
+      updUpTitle(); pump();
       clearTimeout(refreshT); refreshT = setTimeout(() => { if (S.view === 'drive' || S.view === 'recent' || S.view === 'photos') load(); loadStats(); }, active ? 3000 : 300);
     });
   }
@@ -827,6 +864,7 @@ async function renderUsers() {
       <button class="btn small" data-a="pass">Contraseña</button><button class="btn small danger" data-a="del">Eliminar</button></div></td></tr>`).join('') + `</tbody></table></div>
     <p class="c-m" style="margin-top:16px">Los nuevos registros quedan <b>pendientes</b> hasta que los apruebes aquí.</p>`;
   $('#addUser').onclick = addUserDialog;
+
   const upd = async (id, body) => { try { await api('/api/admin/users/' + id, {json: body}); toast('Guardado'); renderUsers(); } catch (e) { toast(e.message); renderUsers(); } };
   $$('.users tr[data-id]').forEach(tr => {
     const id = tr.dataset.id, name = tr.querySelector('b').textContent;
@@ -909,10 +947,10 @@ $('#userMenu').onclick = async e => {
 };
 $('#nav').onclick = e => { const a = e.target.closest('[data-view]'); if (a) go(a.dataset.view); };
 $('#gridBtn').onclick = () => setMode('grid'); $('#listBtn').onclick = () => setMode('list');
-function setMode(m) { S.mode = m; try { localStorage.setItem('dp-mode', m); } catch (e) {} if (S.view !== 'users' && S.view !== 'panel') render(); }
+function setMode(m) { S.mode = m; try { localStorage.setItem('dp-mode', m); } catch (e) {} if (!['users', 'panel', 'settings'].includes(S.view)) render(); }
 let searchT;
 $('#search').addEventListener('input', e => { clearTimeout(searchT); searchT = setTimeout(() => {
-  S.q = e.target.value.trim(); if (S.q && (S.view === 'users' || S.view === 'trash' || S.view === 'shared' || S.view === 'panel')) { S.view = 'drive'; $$('#nav a').forEach(a => a.classList.remove('active')); }
+  S.q = e.target.value.trim(); if (S.q && ['users', 'trash', 'shared', 'panel', 'settings'].includes(S.view)) { S.view = 'drive'; $$('#nav a').forEach(a => a.classList.remove('active')); }
   if (!S.q) return route(); load(); }, 300); });
 const THEMES = ['auto', 'light', 'dark'], TNAME = {auto: 'Tema: automático', light: 'Tema: claro', dark: 'Tema: oscuro'}, TICON = {auto: 'auto', light: 'sun', dark: 'moon'};
 function paintTheme() { const t = document.documentElement.dataset.theme || 'auto'; const b = $('#themeBtn'); b.title = TNAME[t]; b.innerHTML = ic(TICON[t]); }
@@ -920,6 +958,65 @@ $('#themeBtn').onclick = () => { const t = THEMES[(THEMES.indexOf(document.docum
 $('#menuBtn').onclick = () => { $('#sidebar').classList.add('open'); $('#scrim').classList.remove('hidden'); };
 $('#scrim').onclick = closeSidebar;
 function closeSidebar() { $('#sidebar').classList.remove('open'); $('#scrim').classList.add('hidden'); }
+
+/* ---------- ajustes ---------- */
+const ACCENT_NAME = {blue: 'Azul', green: 'Verde', purple: 'Morado', orange: 'Naranja', red: 'Rojo', teal: 'Turquesa', pink: 'Rosa'};
+function applyAccent(a) {
+  if (!ACCENT_NAME[a]) a = 'blue';
+  document.documentElement.dataset.accent = a;
+  try { localStorage.setItem('dp-accent', a); } catch (e) {}
+}
+const fmtGB = b => (b / 1073741824).toFixed(b < 10 * 1073741824 ? 1 : 0).replace('.', ',') + ' GB';
+const profLine = p => `${p.upload_parallel} ${p.upload_parallel === 1 ? 'subida' : 'subidas'} a la vez · trozos de ${p.chunk_mb} MB · ${p.thumb_workers} ${p.thumb_workers === 1 ? 'miniatura' : 'miniaturas'} a la vez`;
+
+async function renderSettings() {
+  crumbs(); $('#emptyTrash').classList.add('hidden'); updateSel();
+  const c = $('#content');
+  let A = null;
+  if (S.me.is_admin) { try { A = await api('/api/admin/settings'); } catch (e) { toast(e.message); } }
+  if (S.view !== 'settings') return;
+  const theme = document.documentElement.dataset.theme || 'auto';
+  let h = `<div class="settings">
+    <section class="card"><div class="set-head">${ic('account')}<div><h4>Tus preferencias</h4><div class="sub">Solo para ti y en este navegador</div></div></div>
+      <label class="set-row"><span><b>Pantalla de inicio</b><small>Lo que se abre al entrar en DrivePanel</small></span>
+        <select id="stHome">${Object.entries(HOMES).map(([k, v]) => `<option value="${k}" ${k === homeView() ? 'selected' : ''}>${v[1]}</option>`).join('')}</select></label>
+      <label class="set-row"><span><b>Tema</b><small>Claro, oscuro o el que tenga el dispositivo</small></span>
+        <select id="stTheme">${THEMES.map(t => `<option value="${t}" ${t === theme ? 'selected' : ''}>${TNAME[t].replace('Tema: ', '').replace(/^./, x => x.toUpperCase())}</option>`).join('')}</select></label>
+    </section>`;
+  if (A) {
+    const d = A.detected, sug = A.profiles[d.suggest];
+    h += `<section class="card"><div class="set-head">${ic('memory')}<div><h4>Máquina donde funciona DrivePanel</h4><div class="sub">Según la máquina, DrivePanel hace más o menos cosas a la vez. Vale para todos los usuarios, en la web y en la app del móvil.</div></div></div>
+      <div class="detect">${ic('info')}<span>Detectado: <b>${esc(d.name)}</b> · ${d.cpus} ${d.cpus === 1 ? 'núcleo' : 'núcleos'}${d.ram ? ' · ' + fmtGB(d.ram) + ' de RAM' : ''}. Recomendado: <b>${esc(sug.name)}</b>.</span></div>
+      <div class="profiles">${Object.entries(A.profiles).map(([k, p]) => `<button class="prof ${k === A.machine ? 'on' : ''}" data-prof="${k}">
+        <b>${esc(p.name)}${k === d.suggest ? ' <span class="tag">recomendado</span>' : ''}</b><small>${esc(p.desc)}</small>
+        ${k === 'custom' ? '' : `<em>${profLine(p)}</em>`}</button>`).join('')}</div>
+      <div id="customBox" class="${A.machine === 'custom' ? '' : 'hidden'}">
+        <label class="set-row"><span><b>Subidas a la vez</b><small>Cuántos archivos se suben al mismo tiempo</small></span>
+          <select data-cu="upload_parallel">${[1, 2, 3, 4, 5, 6].map(n => `<option ${n === A.custom.upload_parallel ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="set-row"><span><b>Tamaño de cada trozo</b><small>Más grande va algo más rápido; más pequeño aguanta mejor los cortes y los proxys</small></span>
+          <select data-cu="chunk_mb">${A.chunks.map(n => `<option value="${n}" ${n === A.custom.chunk_mb ? 'selected' : ''}>${n} MB</option>`).join('')}</select></label>
+        <label class="set-row"><span><b>Miniaturas a la vez</b><small>Fotos que se preparan a la vez para verlas en pequeño</small></span>
+          <select data-cu="thumb_workers">${[1, 2, 3, 4].map(n => `<option ${n === A.custom.thumb_workers ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      </div>
+      <div class="sub now">Ahora: <b>${profLine(A.effective)}</b></div>
+    </section>
+    <section class="card"><div class="set-head">${ic('palette')}<div><h4>Color de la aplicación</h4><div class="sub">Para todos los usuarios. Claro u oscuro lo sigue eligiendo cada uno arriba.</div></div></div>
+      <div class="swatches">${A.accents.map(a => `<button class="sw-btn ${a === A.accent ? 'on' : ''}" data-acc="${a}" title="${ACCENT_NAME[a]}"><i class="dot" data-accent-dot="${a}"></i><span>${ACCENT_NAME[a]}</span></button>`).join('')}</div>
+    </section>`;
+  }
+  h += `</div>`;
+  c.innerHTML = h;
+  $('#stHome').onchange = e => { try { localStorage.setItem('dp-home', e.target.value); } catch (er) {} toast('Al entrar se abrirá: ' + HOMES[e.target.value][1]); };
+  $('#stTheme').onchange = e => { document.documentElement.dataset.theme = e.target.value; try { localStorage.setItem('dp-theme', e.target.value); } catch (er) {} paintTheme(); };
+  if (!A) return;
+  const save = async (body, msg) => {
+    try { const r = await api('/api/admin/settings', {json: body}); S.me.upload_parallel = r.effective.upload_parallel; S.me.chunk_mb = r.effective.chunk_mb; CHUNK = r.effective.chunk_mb * 1048576; S.me.accent = r.accent; toast(msg); renderSettings(); }
+    catch (e) { toast(e.message); }
+  };
+  c.querySelectorAll('[data-prof]').forEach(b => b.onclick = () => save({machine: b.dataset.prof}, 'Perfil: ' + A.profiles[b.dataset.prof].name));
+  c.querySelectorAll('[data-cu]').forEach(s => s.onchange = () => save({custom: {[s.dataset.cu]: +s.value}}, 'Guardado'));
+  c.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { applyAccent(b.dataset.acc); save({accent: b.dataset.acc}, 'Color: ' + ACCENT_NAME[b.dataset.acc]); });
+}
 
 /* ---------- pantalla de inicio (se guarda en este navegador) ---------- */
 const HOMES = {panel: ['chart', 'Panel de actividad', 'Gráficos de espacio, subidas y actividad'], drive: ['drive', 'Mi unidad', 'Tus carpetas y archivos']};

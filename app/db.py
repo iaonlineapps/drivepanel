@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS activity(
   id INTEGER PRIMARY KEY, username TEXT, action TEXT, path TEXT,
   size INTEGER DEFAULT 0, at REAL);
 CREATE INDEX IF NOT EXISTS activity_user_at ON activity(username, at);
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
 """
 
 
@@ -127,3 +128,4 @@ def log(username: str, action: str, path: str = "", size: int = 0):
             username, action, path, int(size or 0), time.time())
     except sqlite3.Error:
         pass  # el registro nunca debe romper una operacion
+
