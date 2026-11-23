@@ -156,6 +156,11 @@ servidor.
 
 - Entrar con tu usuario, ver y abrir tus archivos, fotos, vídeos y PDF.
 - **Subir** archivos y fotos desde el móvil (puedes elegir varios a la vez).
+- **Compartir con DrivePanel:** en la galería, WhatsApp o cualquier app, toca **Compartir** y
+  elige **DrivePanel**. La app pregunta la carpeta (por defecto *Del móvil*; se crea sola) y lo
+  sube con el panel de subidas.
+- **Al abrir** entras en el **Panel de actividad**. Para empezar en **Mi unidad**, pulsa
+  **Atrás** y elige **Pantalla al abrir**.
 - **Subir carpetas enteras**, con sus subcarpetas: en **Acciones** elige **Subir carpeta**,
   busca la carpeta y toca **Usar esta carpeta**. (Android no deja elegir la raíz de la memoria
   ni la carpeta Descargas entera; elige una carpeta de dentro.)

@@ -461,6 +461,7 @@ public class MainActivity extends Activity {
                 view.evaluateJavascript(Carpeta.JS, null);
                 view.evaluateJavascript(versionJs(), null);
                 injectShare();
+                view.evaluateJavascript(homeJs(), null);
             }
         });
 
@@ -521,12 +522,22 @@ public class MainActivity extends Activity {
         if (state == null) Toast.makeText(this, "DrivePanel · App Android " + Novedades.version(this), Toast.LENGTH_SHORT).show();
         Novedades.check(this, prefs, false);
         if (state != null && web.restoreState(state) != null) return;
-        web.loadUrl(base + "/#/" + startView());
+        // La web 1.0.2 o mas nueva ya abre la pantalla de inicio elegida; con una mas antigua
+        // la pone la app (ver homeJs).
+        web.loadUrl(base + "/");
     }
 
     /** Pantalla al abrir la app: "panel" (Panel de actividad) o "drive" (Mi unidad). */
     private String startView() {
         return "drive".equals(prefs.getString(KEY_START, "panel")) ? "drive" : "panel";
+    }
+
+    /** Pantalla de inicio: la web nueva la guarda en dp-home; en una antigua se va con el #. */
+    private String homeJs() {
+        String v = startView();
+        return "(function(){try{if(!localStorage.getItem('dp-home'))localStorage.setItem('dp-home','" + v + "');}catch(e){}"
+                + "if(window.__dpHome)return;window.__dpHome=1;"
+                + "if(typeof homeView!=='function'&&!location.hash.replace('#','').replace('/',''))location.hash='#/" + v + "';})();";
     }
 
     private void chooseStartView() {
@@ -537,6 +548,7 @@ public class MainActivity extends Activity {
                 .setSingleChoiceItems(new CharSequence[]{"Panel de actividad", "Mi unidad"}, cur, new android.content.DialogInterface.OnClickListener() {
                     @Override public void onClick(android.content.DialogInterface d, int which) {
                         prefs.edit().putString(KEY_START, keys[which]).apply();
+                        if (web != null) web.evaluateJavascript("try{localStorage.setItem('dp-home','" + keys[which] + "')}catch(e){}", null);
                         d.dismiss();
                         toast("Al abrir la app verás: " + (which == 0 ? "Panel de actividad" : "Mi unidad"));
                     }
