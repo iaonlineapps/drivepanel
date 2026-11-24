@@ -383,7 +383,31 @@ usuarios y compartidos, basta con `DATA_DIR/config/`.
   se muestran como texto o se descargan, para que un usuario no pueda atacar a otro
   compartiéndole un archivo.
 
-## 9. Licencia
+## 9. Desinstalar
+
+Un solo comando, desde la carpeta de DrivePanel. Pregunta antes de borrar nada y ofrece una
+copia de seguridad:
+
+```bash
+bash uninstall.sh
+```
+
+1. Pide que escribas `DESINSTALAR` para seguir (si no, no toca nada).
+2. Ofrece **copia de seguridad** de los datos en un `.tar.gz` junto a la carpeta de datos
+   (te dice cuánto ocupan antes, porque con muchos archivos puede ser grande).
+3. Para y borra el **contenedor** y la **imagen** de Docker.
+4. Pregunta si borrar también los **datos** (la carpeta `DATA_DIR`: archivos de todos los
+   usuarios, papelera, usuarios y compartidos). Hay que escribir `BORRAR` para confirmarlo;
+   si dices que no, se conservan y sirven si vuelves a instalarlo.
+5. Pregunta si borrar la **carpeta del programa**.
+6. Se despide con un mensaje de agradecimiento. 🙂
+
+Después quita el recurso de DrivePanel en tu proxy si lo tenías. En el móvil, la app de
+Android se desinstala como cualquier otra; quita también la cuenta WebDAV si la pusiste.
+Si lo instalaste desde una tienda (CasaOS, Umbrel o Runtipi), desinstálalo desde la propia
+tienda.
+
+## 10. Licencia
 
 DrivePanel se publica con la licencia
 [PolyForm Noncommercial 1.0.0](LICENSE.md). En resumen (el texto que vale es el de
