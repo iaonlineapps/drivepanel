@@ -199,6 +199,12 @@ servidor.
 - **Compartir con DrivePanel:** en la galería, WhatsApp o cualquier app, toca **Compartir** y
   elige **DrivePanel**. La app pregunta la carpeta (por defecto *Del móvil*; se crea sola) y lo
   sube con el panel de subidas.
+- **Copia automática de fotos**, como Google Fotos: pulsa **Atrás** → **Copia automática de
+  fotos** y actívala. La app sube sola las fotos y vídeos nuevos a una carpeta de DrivePanel
+  (por defecto *Fotos del móvil*, con una subcarpeta por álbum). Puedes elegir solo con wifi,
+  solo las de la cámara (sin WhatsApp ni capturas) y si copia también las que ya tenías.
+  Mientras copia ves el progreso, la velocidad y el tiempo que queda, y puedes **pausarla** o
+  **cancelarla** desde la app o desde el aviso. Lo que ya está subido no se repite.
 - **Al abrir** entras en el **Panel de actividad**. Para empezar en **Mi unidad**, pulsa
   **Atrás** y elige **Pantalla al abrir**.
 - **Subir carpetas enteras**, con sus subcarpetas: en **Acciones** elige **Subir carpeta**,
@@ -265,6 +271,7 @@ carpetas, compartir enlaces, el Panel de actividad y los Ajustes. **Lo que no ha
   se cortan si cierras Safari o bloqueas el iPhone durante un rato. Lo mismo con las subidas:
   deja la pantalla abierta hasta que terminen.
 - **Subir carpetas enteras:** iOS solo deja elegir archivos sueltos o fotos.
+- **La copia automática de fotos** de la app Android (para eso usa WebDAV, mira abajo).
 
 Para que las fotos se suban solas también en iPhone, usa **WebDAV** con una app como
 PhotoSync (mira la sección de WebDAV más abajo).
