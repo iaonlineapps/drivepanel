@@ -228,7 +228,7 @@ public class CopiaFotos extends JobService {
                 m.album = cur.getString(6);
                 String where = cur.getString(7);
                 if (m.name == null || m.size <= 0) continue;
-                if (camera && (where == null || !(where.startsWith("DCIM/") || where.contains("/DCIM/")))) continue;
+                if (camera && !isCamera(where, m.album, m.name)) continue;
                 if (m.album == null || m.album.trim().isEmpty()) m.album = "Otras";
                 m.uri = ContentUris.withAppendedId(base, m.id);
                 out.add(m);
@@ -267,6 +267,23 @@ public class CopiaFotos extends JobService {
                 .putLong(K_SINCE, System.currentTimeMillis() / 1000).putLong(K_SINCE_ID, Long.MAX_VALUE).apply();
         setStatus(c, "Cancelada: las fotos que faltaban no se copian; las nuevas, sí");
         notifications(c).cancel(NOTIF_PROGRESS);
+    }
+
+    /**
+     * "Solo de la camara": tiene que estar en DCIM y no ser de WhatsApp, Telegram, capturas...
+     * (algunos moviles y apps guardan esas fotos tambien dentro de DCIM).
+     */
+    static boolean isCamera(String where, String album, String name) {
+        if (where == null) return false;
+        String w = where.replace('\\', '/');
+        if (!(w.startsWith("DCIM/") || w.contains("/DCIM/"))) return false;
+        String all = (w + "|" + album + "|" + name).toLowerCase(Locale.ROOT);
+        for (String bad : new String[]{"whatsapp", "telegram", "screenshot", "captura", "instagram", "facebook",
+                "messenger", "signal", "snapchat", "tiktok", "twitter", "download", "descarga"}) {
+            if (all.contains(bad)) return false;
+        }
+        String n = name == null ? "" : name.toUpperCase(Locale.ROOT);
+        return !n.matches(".*-WA\\d+.*");                 // IMG-20241105-WA0067.jpeg = WhatsApp
     }
 
     /** Hace la copia. Devuelve true si hay que reintentar mas tarde (se corto). */
