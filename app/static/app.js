@@ -37,6 +37,8 @@ const P = {
   left:'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z', right:'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
   more:'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
   open:'M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
+  chat:'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
+  send:'M2.01 21L23 12 2.01 3 2 10l15 2-15 2z',
   link:'M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z',
   play:'M8 5v14l11-7z',
   down:'M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z',
@@ -233,23 +235,28 @@ function render() {
   const c = $('#content');
   let html = '';
   if (S.view === 'shared' && !S.share && !S.q) html += myLinksHtml();
-  if (!S.items.length) { c.innerHTML = html + `<div class="empty">${ic(S.view === 'trash' ? 'trash' : S.view === 'photos' ? 'photo' : 'drive')}${emptyMsg()}</div>`; updateSel(); return; }
+  if (!S.items.length) { c.innerHTML = html + `<div class="empty">${ic(S.view === 'trash' ? 'trash' : S.view === 'photos' ? 'photo' : 'drive')}${emptyMsg()}</div>`; bindShareRows(c); updateSel(); return; }
   if (S.view === 'photos' && !S.q) html += photosHtml();
   else if (S.mode === 'list') html += listHtml();
   else html += gridHtml();
   c.innerHTML = html;
   c.querySelectorAll('.item').forEach(bindItem);
-  c.querySelectorAll('[data-unshare]').forEach(b => b.onclick = async () => { await api('/api/share/' + b.dataset.unshare, {method:'DELETE'}); load(); });
-  c.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy));
+  bindShareRows(c);
   observeThumbs(c);
   updateSel();
 }
 
+// botones de «Lo que he compartido» (tambien cuando nadie ha compartido nada contigo)
+function bindShareRows(c) {
+  c.querySelectorAll('[data-send]').forEach(b => b.onclick = () => { const s = (S.sharesData?.mine || []).find(x => x.share_id === +b.dataset.send); s && sendDialog(s.name, location.origin + '/s/' + s.token, s.expires); });
+  c.querySelectorAll('[data-unshare]').forEach(b => b.onclick = async () => { await api('/api/share/' + b.dataset.unshare, {method:'DELETE'}); load(); });
+  c.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy));
+}
 function myLinksHtml() {
   const mine = S.sharesData?.mine || [];
   if (!mine.length) return '';
   return `<div class="sec-title">Lo que he compartido</div>` + mine.map(s => `<div class="share-row">${ic(s.kind, 'ic-' + s.kind)}<span>${esc(s.path)} · ${s.target ? 'con ' + esc(s.target) : 'enlace público' + (s.expires ? ' · caduca el ' + esc(fmtDate(s.expires)) : '')}</span>
-    ${s.target ? '' : `<button class="btn small" data-copy="${esc(location.origin + '/s/' + s.token)}">Copiar enlace</button>`}
+    ${s.target ? '' : `<button class="btn small" data-copy="${esc(location.origin + '/s/' + s.token)}">Copiar enlace</button><button class="btn small" data-send="${s.share_id}">${ic('send')} Enviar</button>`}
     <button class="btn small danger" data-unshare="${s.share_id}">Dejar de compartir</button></div>`).join('') + `<div class="sec-title">Compartido conmigo</div>`;
 }
 
@@ -487,7 +494,7 @@ async function shareDialog(it) {
     <form id="shU" style="display:flex;gap:8px"><input id="shUser" placeholder="Nombre de usuario"><button class="btn primary">Compartir</button></form>
     <label>O con un enlace público (cualquiera con el enlace puede descargarlo${it.dir ? ' en .zip' : ''})</label>
     <div id="shLink" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="shDays" style="width:auto"><option value="">No caduca</option><option value="1">Caduca en 1 día</option><option value="7" selected>Caduca en 7 días</option><option value="30">Caduca en 30 días</option></select>
+      <select id="shDays" style="width:auto"><option value="">No caduca</option><option value="0.0417">Caduca en 1 hora</option><option value="1">Caduca en 1 día</option><option value="7" selected>Caduca en 7 días</option><option value="30">Caduca en 30 días</option></select>
       <button class="btn" id="mkLink">${ic('link')} Crear enlace</button></div>
     <div class="actions"><button class="btn" data-close>Cerrar</button></div>`);
   $('#shU').onsubmit = async e => { e.preventDefault(); try { await api('/api/share', {json: {path: it.path, target: $('#shUser').value}}); toast('Compartido con ' + $('#shUser').value); closeDialog(); } catch (err) { toast(err.message); } };
@@ -495,9 +502,41 @@ async function shareDialog(it) {
     const days = +$('#shDays').value || null;
     let r; try { r = await api('/api/share', {json: {path: it.path, days}}); } catch (err) { return toast(err.message); }
     const url = location.origin + '/s/' + r.token;
-    $('#shLink').innerHTML = `<div class="copy">${esc(url)}</div><button class="btn small" id="cpL">Copiar</button>${r.expires ? `<span class="muted">Caduca el ${esc(fmtDate(r.expires))}</span>` : ''}`; $('#cpL').onclick = () => copy(url);
+    $('#shLink').outerHTML = sendBox(it.name, url, r.expires); bindSendBox(it.name, url, r.expires);
   };
   return p;
+}
+/* Enviar un enlace publico por WhatsApp, Telegram u otra app del movil.
+   WhatsApp y Telegram se abren con sus enlaces web (wa.me y t.me), que en el movil saltan
+   a la app y en el PC abren WhatsApp Web / Telegram. «Otras apps» usa el menu de compartir
+   del propio movil, si el navegador lo tiene. */
+const LAN_HOST = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1|\[?f[cd]|[^.]+$|.*\.(local|lan|home|internal)$)/i;
+function sendText(name, url, expires) {
+  return `Te paso «${name}» desde DrivePanel: ${url}` + (expires ? ` (el enlace caduca el ${fmtDate(expires)})` : '');
+}
+function sendBox(name, url, expires) {
+  return `<div id="shLink"><div class="copy">${esc(url)}</div>
+    ${expires ? `<div class="muted">Caduca el ${esc(fmtDate(expires))}</div>` : ''}
+    <div class="send-row">
+      <button class="btn small" id="cpL">${ic('link')} Copiar</button>
+      <button class="btn small send-wa" id="sWa">${ic('chat')} WhatsApp</button>
+      <button class="btn small send-tg" id="sTg">${ic('send')} Telegram</button>
+      ${navigator.share ? `<button class="btn small" id="sMore">${ic('share')} Otras apps</button>` : ''}
+    </div>
+    ${LAN_HOST.test(location.hostname) ? `<p class="muted send-warn">Ojo: el enlace usa la dirección de tu casa (${esc(location.hostname)}). Solo funcionará a quien esté conectado a tu misma wifi. Para que funcione desde fuera, entra en DrivePanel con la dirección de internet de tu servidor y crea el enlace desde ahí.</p>` : ''}
+  </div>`;
+}
+function bindSendBox(name, url, expires) {
+  const box = $('#shLink'); paintIcons(box);
+  const text = sendText(name, url, expires), open = u => window.open(u, '_blank', 'noopener');
+  $('#cpL').onclick = () => copy(url);
+  $('#sWa').onclick = () => open('https://wa.me/?text=' + encodeURIComponent(text));
+  $('#sTg').onclick = () => open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text.replace(': ' + url, '').replace(url, '')));
+  const m = $('#sMore'); if (m) m.onclick = () => navigator.share({title: name, text, url}).catch(() => {});
+}
+function sendDialog(name, url, expires) {
+  dialog(`<h3>Enviar «${esc(name)}»</h3>${sendBox(name, url, expires)}<div class="actions"><button class="btn" data-close>Cerrar</button></div>`);
+  bindSendBox(name, url, expires);
 }
 function copy(text) {
   (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => toast('Copiado'), () => {

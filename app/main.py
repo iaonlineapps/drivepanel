@@ -901,6 +901,27 @@ a.b{{display:block;padding:15px;border-radius:12px;text-decoration:none;font-wei
 <small>Si no tienes la app, el primer botón te lleva a descargarla.</small></div></body></html>""")
 
 
+_PREVIEW_BOTS = ("whatsapp", "telegrambot", "facebookexternalhit", "twitterbot", "slackbot", "discordbot",
+                 "skypeuripreview", "linkedinbot", "signal", "viber")
+
+
+def _is_preview_bot(request: Request) -> bool:
+    """WhatsApp, Telegram y compania abren el enlace para sacar la vista previa del chat.
+    A ellos se les da una ficha pequena (nombre y tamano) en vez del archivo, asi no se
+    descarga entero ni se comprime una carpeta en .zip solo para la vista previa."""
+    ua = request.headers.get("user-agent", "").lower()
+    return any(b in ua for b in _PREVIEW_BOTS)
+
+
+def _preview_page(name: str, size: str) -> HTMLResponse:
+    from html import escape
+    t, d = escape(name), escape(size + " · compartido con DrivePanel")
+    return HTMLResponse(f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{t}</title>
+<meta property="og:title" content="{t}"><meta property="og:description" content="{d}">
+<meta property="og:type" content="website"><meta property="og:site_name" content="DrivePanel">
+<meta name="description" content="{d}"></head><body><h1>{t}</h1><p>{d}</p></body></html>""")
+
+
 @app.get("/s/{token}")
 def public_link(request: Request, token: str, inline: int = 0, dl: int = 0):
     s = db.q1("SELECT * FROM shares WHERE token=? AND target IS NULL", token)
@@ -910,9 +931,11 @@ def public_link(request: Request, token: str, inline: int = 0, dl: int = 0):
     if not s:
         return HTMLResponse("<h2 style='font-family:sans-serif'>Enlace no valido o caducado</h2>", 404)
     p = safe_path(user_root(s["owner"]), s["path"])
-    if not inline and not dl and (p.is_file() or p.is_dir()) and _wants_choice(request):
+    if (p.is_file() or p.is_dir()) and (_is_preview_bot(request) or (not inline and not dl and _wants_choice(request))):
         name = p.name if p.is_file() else p.name + ".zip"
         size = f"{p.stat().st_size / 1048576:.1f} MB".replace(".", ",") if p.is_file() else "Carpeta (se descarga en .zip)"
+        if _is_preview_bot(request):
+            return _preview_page(p.name, size)
         return _choice_page(str(request.url.replace(query="")), name, size)
     if p.is_file():
         return send_file(p, not inline)
