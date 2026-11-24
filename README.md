@@ -6,10 +6,10 @@ Tu propio "Google Drive" en casa, pensado para una Raspberry Pi (funciona en cua
 Linux con Docker). Ligero (unos 40 MB de RAM), en español y en inglés, con modo claro/oscuro y
 WebDAV para que el móvil suba las fotos solo.
 
-> **Idiomas / Languages:** ahora DrivePanel está en español. **El inglés llegará muy pronto**,
-> y más adelante otros idiomas si la gente los pide.
-> DrivePanel is in Spanish right now. **English is coming very soon**, and more languages
-> will follow later if people ask for them.
+> **Idiomas / Languages:** DrivePanel está en **español e inglés**. Sale en el idioma del
+> navegador y se cambia en **Ajustes → Tus preferencias → Idioma**. Más idiomas si la gente los pide.
+> DrivePanel is available in **Spanish and English**. It opens in your browser's language and
+> you can change it in **Settings → Your preferences → Language**. More languages if people ask.
 
 **Qué incluye:**
 
@@ -49,7 +49,8 @@ Properties · uploads of files and whole folders in chunks with retries, duplica
 warnings and live speed · activity dashboard (uploads per day, disk usage, file types,
 live Raspberry Pi status) · Photos by month or by album · Recent, viewer for photos,
 video, audio, PDF and text, .zip download · Trash · sharing with another user or with a
-public link that can expire · users with admin approval and quotas · WebDAV at `/dav/` ·
+public link that can expire · users with admin approval and quotas · WebDAV at `/dav/` · disk full
+warnings in the web, the phone app and (optional) Telegram ·
 installable on the phone (from the browser or with the Android APK).
 
 **Install:**
@@ -81,6 +82,17 @@ delete your files too (you must type `BORRAR` to confirm). The script speaks Spa
 values (the keys are the Spanish texts) and add the code to `LANGS` in
 `app/static/i18n.js` and `app/i18n.py`.
 
+**Screenshots:**
+
+| | |
+|---|---|
+| ![My Drive](docs/capturas/mi-unidad-en.png) | ![Activity dashboard](docs/capturas/panel-en.png) |
+| **My Drive** | **Activity dashboard** |
+| ![Photos](docs/capturas/fotos-en.png) | ![Settings](docs/capturas/ajustes-en.png) |
+| **Photos** by month or by album | **Settings**, with the language |
+| ![Disk full warning](docs/capturas/aviso-disco-en.png) | |
+| **Disk full warning**, with optional Telegram | |
+
 </details>
 
 ![Mi unidad](docs/capturas/mi-unidad.png)
@@ -100,6 +112,8 @@ values (the keys are the Spanish texts) and add the code to `LANGS` in
 | **Fotos**, agrupadas por meses | **Compartido**, con usuarios o por enlace |
 | ![Usuarios](docs/capturas/usuarios.png) | <img src="docs/capturas/movil.png" width="260" alt="En el móvil"> |
 | **Usuarios** (administrador) | **En el móvil** |
+| ![Ajustes](docs/capturas/ajustes.png) | ![Aviso de disco lleno](docs/capturas/aviso-disco.png) |
+| **Ajustes**, con el idioma | **Aviso de disco lleno**, con Telegram opcional |
 | ![Entrar](docs/capturas/entrar.png) | |
 | **Pantalla de entrada** | |
 
