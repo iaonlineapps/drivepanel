@@ -190,6 +190,13 @@ table.list{width:100%;border-collapse:collapse}
 .picker{border:1px solid var(--line);border-radius:10px;max-height:260px;overflow-y:auto;margin-top:8px}
 .picker button{display:flex;gap:10px;align-items:center;width:100%;padding:9px 12px;text-align:left}
 .picker button:hover{background:var(--hover)}
+.send-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.send-row .btn,.share-row .btn{display:inline-flex;align-items:center;gap:6px}
+.send-row .btn i,.share-row .btn i{width:16px;height:16px;display:inline-flex}
+.btn.send-wa{background:#25d366;border-color:#25d366;color:#fff}
+.btn.send-tg{background:#2aabee;border-color:#2aabee;color:#fff}
+.btn.send-wa:hover,.btn.send-tg:hover{filter:brightness(.93)}
+.send-warn{margin:10px 0 0;padding:8px 10px;border-radius:8px;background:var(--card)}
 .share-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .share-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 
