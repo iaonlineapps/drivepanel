@@ -57,6 +57,9 @@ const P = {
   memory:'M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z',
   palette:'M12 3a9 9 0 000 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
   refresh:'M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
+  warn:'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+  check:'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7.41 19.59 6z',
+  bell:'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z',
   info:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
   storage:'M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z',
   cloudUp:'M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z',
@@ -126,7 +129,7 @@ async function start() {
   paintAvatars(); paintVersion(); applyAccent(S.me.accent);
   if (S.me.chunk_mb) CHUNK = S.me.chunk_mb * 1024 * 1024;
   $$('.admin-only').forEach(e => e.classList.toggle('hidden', !S.me.is_admin));
-  updateBadge(S.me.pending);
+  updateBadge(S.me.pending); paintDiskAlert(S.me.disk_alert);
   route(); loadStats();
 }
 // Versión del servidor y, si se abre desde la app de Android, también la de la app
@@ -1079,12 +1082,30 @@ async function loadStats() {
     if (S.view === 'panel') paintLive();
     $('#stUser').textContent = fmtSize(s.used) + (s.quota ? ' de ' + fmtSize(s.quota) : '');
     setBar('#barUser', s.quota ? s.used / s.quota * 100 : 0);
-    $('#stDisk').textContent = fmtSize(s.disk.free) + ' libres'; setBar('#barDisk', s.disk.used / s.disk.total * 100);
+    $('#stDisk').textContent = fmtSize(s.disk.free) + ' libres'; setBar('#barDisk', (s.disk.total - s.disk.free) / s.disk.total * 100);
     if (s.cpu != null) { $('#stCpu').textContent = Math.round(s.cpu) + '%'; setBar('#barCpu', s.cpu); }
     if (s.temp != null) { $('#stTemp').textContent = s.temp.toFixed(1).replace('.', ',') + ' °C'; setBar('#barTemp', (s.temp - 30) / 55 * 100, 60, 80); }
     else $('#stTemp').closest('.stat').classList.add('hidden');
+    paintDiskAlert(s.disk_alert);
     if (s.mem) { $('#stMem').textContent = fmtSize(s.mem.used) + ' / ' + fmtSize(s.mem.total); setBar('#barMem', s.mem.used / s.mem.total * 100); }
   } catch (e) {}
+}
+
+/* ---------- aviso de disco lleno (lo decide el servidor, ver alerts.py) ---------- */
+function paintDiskAlert(a) {
+  const el = $('#diskAlert'); if (!el) return;
+  const key = a ? a.level + ':' + Math.round(a.since) : '';
+  let closed = ''; try { closed = localStorage.getItem('dp-diskalert') || ''; } catch (e) {}
+  if (!a || closed === key) { el.classList.add('hidden'); return; }
+  const pct = String(a.pct).replace('.', ',');
+  const txt = a.level >= 2
+    ? `<b>El disco está lleno (${pct} %).</b> Solo quedan ${fmtSize(a.free)} libres y puede que no se puedan subir más archivos.` + (S.me.is_admin ? ' Borra lo que no necesites y vacía la papelera.' : ' Avisa al administrador.')
+    : `<b>El disco está casi lleno (${pct} %).</b> Quedan ${fmtSize(a.free)} libres.`;
+  el.className = 'disk-alert ' + (a.level >= 2 ? 'crit' : 'warn');
+  el.innerHTML = `${ic('warn')}<span>${txt}</span>` + (S.me.is_admin ? `<button class="btn small" data-da="panel">Ver qué ocupa más</button>` : '') +
+    `<button class="icon-btn" data-da="close" title="Ocultar este aviso">${ic('close')}</button>`;
+  el.querySelector('[data-da="panel"]')?.addEventListener('click', () => go('panel'));
+  el.querySelector('[data-da="close"]').onclick = () => { try { localStorage.setItem('dp-diskalert', key); } catch (e) {} el.classList.add('hidden'); };
 }
 let statsTick = 0;
 setInterval(() => { statsTick++; if (!document.hidden && S.me && (S.view === 'panel' || statsTick % 2 === 0)) loadStats(); }, 5000);
@@ -1152,6 +1173,9 @@ async function renderSettings() {
       <label class="set-row"><span><b>Tema</b><small>Claro, oscuro o el que tenga el dispositivo</small></span>
         <select id="stTheme">${THEMES.map(t => `<option value="${t}" ${t === theme ? 'selected' : ''}>${TNAME[t].replace('Tema: ', '').replace(/^./, x => x.toUpperCase())}</option>`).join('')}</select></label>
     </section>`;
+  let AL = null;
+  if (S.me.is_admin) { try { AL = await api('/api/admin/alerts'); } catch (e) {} }
+  if (S.view !== 'settings') return;
   if (A) {
     const d = A.detected, sug = A.profiles[d.suggest];
     h += `<section class="card"><div class="set-head">${ic('memory')}<div><h4>Máquina donde funciona DrivePanel</h4><div class="sub">Según la máquina, DrivePanel hace más o menos cosas a la vez. Vale para todos los usuarios, en la web y en la app del móvil.</div></div></div>
@@ -1173,8 +1197,10 @@ async function renderSettings() {
       <div class="swatches">${A.accents.map(a => `<button class="sw-btn ${a === A.accent ? 'on' : ''}" data-acc="${a}" title="${ACCENT_NAME[a]}"><i class="dot" data-accent-dot="${a}"></i><span>${ACCENT_NAME[a]}</span></button>`).join('')}</div>
     </section>`;
   }
+  if (AL) h += alertsCard(AL);
   h += `</div>`;
   c.innerHTML = h;
+  if (AL) bindAlertsCard(AL);
   $('#stPhBtn').onclick = photoDirsDialog;
   api('/api/photos/folders').then(r => { const el = $('#stPhDirs'); if (el) el.textContent = 'Ahora: ' + (r.dirs.length ? r.dirs.join(', ') : 'todas las carpetas'); }).catch(() => {});
   $('#stHome').onchange = e => { try { localStorage.setItem('dp-home', e.target.value); } catch (er) {} toast('Al entrar se abrirá: ' + HOMES[e.target.value][1]); };
@@ -1188,6 +1214,57 @@ async function renderSettings() {
   c.querySelectorAll('[data-cu]').forEach(s => s.onchange = () => save({custom: {[s.dataset.cu]: +s.value}}, 'Guardado'));
   c.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { applyAccent(b.dataset.acc); save({accent: b.dataset.acc}, 'Color: ' + ACCENT_NAME[b.dataset.acc]); });
 }
+
+/* ---------- Ajustes > Avisos de disco lleno (solo administrador) ---------- */
+function alertsCard(AL) {
+  const st = AL.status, tg = AL.telegram, pct = String(st.pct).replace('.', ',');
+  const now = !AL.enabled ? 'Avisos apagados' : st.level >= 2 ? `🔴 Lleno: ${pct} % usado` : st.level === 1 ? `🟠 Casi lleno: ${pct} % usado` : `🟢 Bien: ${pct} % usado`;
+  const opts = (list, val) => [...new Set([...list, val])].sort((a, b) => a - b).map(n => `<option value="${n}" ${n === val ? 'selected' : ''}>${n} %</option>`).join('');
+  return `<section class="card" id="alertsCard"><div class="set-head">${ic('bell')}<div><h4>Avisos de disco lleno</h4><div class="sub">DrivePanel mira el disco cada minuto y avisa una sola vez cuando se va llenando. El aviso sale aquí arriba en la web y en la app del móvil.</div></div></div>
+    <div class="detect">${ic('info')}<span>Ahora: <b>${now}</b> · ${fmtSize(st.free)} libres de ${fmtSize(st.total)}</span></div>
+    <label class="set-row"><span><b>Avisar</b><small>Si lo apagas no sale ningún aviso</small></span>
+      <select id="alEnabled"><option value="1" ${AL.enabled ? 'selected' : ''}>Sí</option><option value="0" ${AL.enabled ? '' : 'selected'}>No</option></select></label>
+    <label class="set-row"><span><b>Casi lleno</b><small>Primer aviso (solo lo ve el administrador)</small></span>
+      <select id="alWarn">${opts([60, 70, 75, 80, 85, 90, 95], AL.warn)}</select></label>
+    <label class="set-row"><span><b>Lleno</b><small>Segundo aviso (lo ven todos los usuarios)</small></span>
+      <select id="alCrit">${opts([80, 85, 90, 95, 97, 98, 99], AL.crit)}</select></label>
+    <div class="set-sub"><b>${ic('send')} Avisos por Telegram</b> <span class="tag">opcional</span>
+      <small>Si tienes un bot de Telegram, DrivePanel te puede mandar el aviso al móvil. Si no lo tienes, no hace falta: el aviso sale igual en la web y en la app.</small></div>
+    ${tg.token_set ? `<div class="detect ok">${ic('check')}<span>Telegram activado${tg.chat ? ' · chat ' + esc(tg.chat) : ''}</span></div>` : ''}
+    <details class="howto"${tg.token_set ? '' : ' open'}><summary>Cómo conseguir el bot (2 minutos)</summary><ol>
+      <li>En Telegram, busca <b>@BotFather</b> y ábrelo.</li>
+      <li>Escríbele <b>/newbot</b> y sigue los pasos: un nombre y un usuario que acabe en «bot».</li>
+      <li>Te dará un <b>token</b> (algo como <code>123456789:AAH…</code>). Cópialo y pégalo aquí abajo.</li>
+      <li>Abre tu bot nuevo, pulsa <b>Iniciar</b> y escríbele cualquier cosa, por ejemplo «hola».</li>
+      <li>Pulsa <b>Buscar mi chat</b> y luego <b>Probar</b>. Si te llega el mensaje, pulsa <b>Guardar</b>.</li></ol></details>
+    <div class="tg-form">
+      <label><small>Token del bot</small><input id="alToken" type="password" autocomplete="off" spellcheck="false" placeholder="${tg.token_set ? 'Guardado (' + esc(tg.token_hint) + '). Pega otro para cambiarlo' : 'Pega aquí el token de @BotFather'}"></label>
+      <label><small>Chat</small><span class="tg-chat"><input id="alChat" inputmode="numeric" autocomplete="off" placeholder="Número de tu chat" value="${esc(tg.chat)}"><button class="btn small" id="alFind">${ic('search')} Buscar mi chat</button></span></label>
+      <div class="tg-btns"><button class="btn small" id="alTest">${ic('send')} Probar</button><button class="btn small primary" id="alSave">Guardar</button>${tg.token_set ? `<button class="btn small" id="alClear">Quitar Telegram</button>` : ''}</div>
+    </div>
+  </section>`;
+}
+function bindAlertsCard(AL) {
+  const tgBody = () => ({tg_token: $('#alToken').value.trim() || null, tg_chat: $('#alChat').value.trim() || null});
+  const save = async (body, msg) => { try { await api('/api/admin/alerts', {json: body}); toast(msg); refreshMe(); renderSettings(); } catch (e) { toast(e.message, 5000); } };
+  $('#alEnabled').onchange = e => save({enabled: e.target.value === '1'}, e.target.value === '1' ? 'Avisos encendidos' : 'Avisos apagados');
+  $('#alWarn').onchange = e => save({warn: +e.target.value}, 'Casi lleno: ' + e.target.value + ' %');
+  $('#alCrit').onchange = e => save({crit: +e.target.value}, 'Lleno: ' + e.target.value + ' %');
+  $('#alFind').onclick = async () => {
+    try {
+      const r = await api('/api/admin/alerts/chats', {json: tgBody()});
+      if (!r.chats.length) return toast('No encuentro ningún chat. Abre tu bot en Telegram, pulsa Iniciar, escríbele «hola» y vuelve a probar', 7000);
+      $('#alChat').value = r.chats[0].id; toast('Chat encontrado: ' + r.chats[0].name);
+    } catch (e) { toast(e.message, 6000); }
+  };
+  $('#alTest').onclick = async () => { try { await api('/api/admin/alerts/test', {json: tgBody()}); toast('Mensaje enviado. Míralo en Telegram', 5000); } catch (e) { toast(e.message, 6000); } };
+  $('#alSave').onclick = () => {
+    const b = tgBody(); if (!b.tg_token && !AL.telegram.token_set) return toast('Pega primero el token de tu bot');
+    save({tg_token: b.tg_token, tg_chat: $('#alChat').value.trim()}, 'Telegram guardado');
+  };
+  $('#alClear') && ($('#alClear').onclick = async () => { if (await confirmDialog('Quitar Telegram', 'Dejarán de llegarte los avisos por Telegram. En la web y en la app seguirán saliendo.', 'Quitar')) save({tg_clear: true}, 'Telegram quitado'); });
+}
+async function refreshMe() { try { const m = await api('/api/me'); S.me.disk_alert = m.disk_alert; paintDiskAlert(m.disk_alert); } catch (e) {} }
 
 /* ---------- pantalla de inicio (se guarda en este navegador) ---------- */
 const HOMES = {panel: ['chart', 'Panel de actividad', 'Gráficos de espacio, subidas y actividad'], drive: ['drive', 'Mi unidad', 'Tus carpetas y archivos']};

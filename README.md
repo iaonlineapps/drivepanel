@@ -25,6 +25,7 @@ WebDAV para que el móvil suba las fotos solo.
 - **Compartir** con otro usuario o con un enlace público que puede caducar.
 - **Usuarios:** registro con aprobación del administrador, cuotas, foto de perfil.
 - **WebDAV** por usuario en `/dav/`, para que el móvil suba las fotos solo.
+- **Aviso de disco lleno:** avisa una vez al llegar a «casi lleno» (85 %) y otra al llegar a «lleno» (95 %), en la web y como notificación en la app del móvil. Si tienes un bot de Telegram, también te llega por Telegram (opcional, en **Ajustes → Avisos de disco lleno**; los pasos para crear el bot con @BotFather vienen ahí mismo).
 - Se puede **instalar en el móvil** como app (desde el navegador o con la **APK para Android**), y tiene modo claro y oscuro.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.

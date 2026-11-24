@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.4
+- Aviso de disco lleno: si el disco de tu servidor DrivePanel se está llenando, te llega una notificación al móvil aunque la app esté cerrada. Avisa una sola vez al llegar a «casi lleno» y otra al llegar a «lleno» (los porcentajes se eligen en la web, en Ajustes). Necesita el servidor 1.0.8 o más nuevo.
+
 ## Versión 1.6.3
 - Copia automática de fotos, como Google Fotos: la app sube sola las fotos y vídeos nuevos del móvil a una carpeta de DrivePanel, con una subcarpeta por álbum. Se puede elegir solo con wifi, solo las de la cámara y la carpeta. Actívala pulsando Atrás → «Copia automática de fotos».
 - Mientras copia ves el progreso en directo, como en las subidas: cuántas lleva, porcentaje, gráfica de velocidad y tiempo que queda. Puedes pausarla, reanudarla o cancelarla desde la app o desde el aviso.

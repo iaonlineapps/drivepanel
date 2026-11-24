@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTM
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import db, limits, ops, settings
+from . import alerts, db, limits, ops, settings
 from .version import VERSION
 from .config import STORAGE, TRASH, TMP, CONFIG, ARCHIVE, ALLOW_REGISTER
 from .fsutil import (user_root, trash_root, safe_path, valid_name, unique_path, entry,
@@ -77,6 +77,18 @@ async def _startup():
             f.unlink(missing_ok=True)
     asyncio.create_task(_cleaner())
     asyncio.create_task(_sampler())
+    asyncio.create_task(_disk_watch())
+
+
+async def _disk_watch():
+    """Mira el disco cada minuto y avisa si se esta llenando (ver alerts.py)."""
+    await asyncio.sleep(20)
+    while True:
+        try:
+            await asyncio.to_thread(alerts.check)
+        except Exception:
+            pass
+        await asyncio.sleep(60)
 
 
 async def _cleaner():
@@ -188,7 +200,7 @@ def me(u=Depends(current_user)):
     pending = db.q1("SELECT COUNT(*) n FROM users WHERE status='pending'")["n"] if u["is_admin"] else 0
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "quota": u["quota"],
             "used": usage(u["username"]), "pending": pending, "avatar": avatar_version(u["id"]), "version": VERSION,
-            **settings.public()}
+            "disk_alert": alerts.for_user(u), **settings.public()}
 
 
 class SettingsUpd(BaseModel):
@@ -209,6 +221,64 @@ def admin_settings_set(b: SettingsUpd, a=Depends(admin_user)):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return settings.admin_view()
+
+
+# --- avisos de disco lleno (Ajustes) -----------------------------------------------
+class AlertsUpd(BaseModel):
+    enabled: bool | None = None
+    warn: int | None = None
+    crit: int | None = None
+    tg_token: str | None = None
+    tg_chat: str | None = None
+    tg_clear: bool = False
+
+
+class TgTest(BaseModel):
+    tg_token: str | None = None
+    tg_chat: str | None = None
+
+
+@app.get("/api/admin/alerts")
+def admin_alerts(a=Depends(admin_user)):
+    return alerts.admin_view()
+
+
+@app.post("/api/admin/alerts")
+def admin_alerts_set(b: AlertsUpd, a=Depends(admin_user)):
+    try:
+        alerts.update(b.enabled, b.warn, b.crit, b.tg_token, b.tg_chat, b.tg_clear)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return alerts.admin_view()
+
+
+@app.post("/api/admin/alerts/test")
+def admin_alerts_test(b: TgTest, a=Depends(admin_user)):
+    """Manda un mensaje de prueba (con lo escrito en Ajustes aunque aun no este guardado)."""
+    token = (b.tg_token or "").strip() or alerts.tg_token()
+    chat = (b.tg_chat or "").strip() or alerts.tg_chat()
+    if not token:
+        raise HTTPException(400, "Pega primero el token de tu bot")
+    if not chat:
+        raise HTTPException(400, "Falta el chat. Escribe algo a tu bot y pulsa «Buscar mi chat»")
+    d = alerts.disk()
+    try:
+        alerts.send_telegram(f"✅ DrivePanel: prueba correcta. Los avisos de disco llegarán aquí.\n"
+                             f"Ahora el disco está al {str(d['pct']).replace('.', ',')} %.", token, chat)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.post("/api/admin/alerts/chats")
+def admin_alerts_chats(b: TgTest, a=Depends(admin_user)):
+    token = (b.tg_token or "").strip() or alerts.tg_token()
+    if not token:
+        raise HTTPException(400, "Pega primero el token de tu bot")
+    try:
+        return {"chats": alerts.find_chats(token)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # --- foto de perfil -------------------------------------------------------------
@@ -1099,7 +1169,7 @@ def stats(u=Depends(current_user)):
     last = _history[-1] if _history else {}
     return {"cpu": last.get("cpu"), "temp": _temp(), "mem": _mem(),
             "disk": {"total": du.total, "used": du.used, "free": du.free},
-            "used": usage(u["username"]), "quota": u["quota"]}
+            "used": usage(u["username"]), "quota": u["quota"], "disk_alert": alerts.for_user(u)}
 
 
 # --- panel de actividad -------------------------------------------------------------

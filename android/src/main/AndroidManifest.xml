@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.pctecnikk.drivepanel"
-    android:versionCode="13"
-    android:versionName="1.6.3">
+    android:versionCode="14"
+    android:versionName="1.6.4">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
 
@@ -60,6 +60,10 @@
         <receiver android:name=".AccionCopia" android:exported="false" />
         <service
             android:name=".CopiaFotos"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service
+            android:name=".AvisoDisco"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>

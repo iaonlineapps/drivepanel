@@ -69,6 +69,7 @@ public class MainActivity extends Activity {
     private static final int REQ_STORAGE = 2;
     private static final int REQ_FOLDER = 3;
     private static final int REQ_MEDIA = 4;
+    private static final int REQ_NOTIF = 5;
     private static final int BLUE = 0xFF1A73E8;
 
     private SharedPreferences prefs;
@@ -99,6 +100,7 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         CopiaFotos.ensureScheduled(this);
+        AvisoDisco.ensureScheduled(this);
         root = new FrameLayout(this);
         root.setBackgroundColor(0xFFF8FAFD);
         setContentView(root);
@@ -834,7 +836,16 @@ public class MainActivity extends Activity {
             if (c != null && !c.equals(prefs.getString(CopiaFotos.K_COOKIE, null))) {
                 prefs.edit().putString(CopiaFotos.K_COOKIE, c).apply();
             }
+            if (c != null && c.contains("dp_session=")) askNotifications();
         } catch (Exception ignored) { }
+    }
+
+    /** Android 13+: pide una vez permiso de notificaciones (para el aviso de disco lleno). */
+    private void askNotifications() {
+        if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean("notif_asked", false)) return;
+        if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED) return;
+        prefs.edit().putBoolean("notif_asked", true).apply();
+        requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, REQ_NOTIF);
     }
 
     private String[] mediaPermissions() {
