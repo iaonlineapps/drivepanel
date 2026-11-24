@@ -909,7 +909,7 @@ public class MainActivity extends Activity {
         lStats.setTextSize(13);
         lStats.setPadding(0, dp(4), 0, 0);
         live.addView(lStats);
-        LinearLayout lButtons = new LinearLayout(this);
+        final LinearLayout lButtons = new LinearLayout(this);
         lButtons.setOrientation(LinearLayout.HORIZONTAL);
         Button lPause = new Button(this);
         lPause.setText("Pausar");
@@ -941,6 +941,7 @@ public class MainActivity extends Activity {
         long total = prefs.getLong(CopiaFotos.K_TOTAL, 0);
         st.setText(on ? "\nEstado: " + (status != null ? status : "esperando") + "\nCopiadas hasta ahora: " + total
                 : "\nAhora está desactivada.");
+        st.append("\nVersión de la app: " + Novedades.version(this) + " (" + versionCode() + ")");
         st.setTextSize(13);
         st.setTextColor(0xFF5F6368);
         box.addView(st);
@@ -974,7 +975,15 @@ public class MainActivity extends Activity {
         ui.post(new Runnable() { @Override public void run() {
             if (!dlg.isShowing()) return;
             boolean running = CopiaFotos.Live.running;
-            live.setVisibility(running ? View.VISIBLE : View.GONE);
+            // Con la copia activada se ve siempre; los detalles, solo mientras copia
+            live.setVisibility(prefs.getBoolean(CopiaFotos.K_ON, false) ? View.VISIBLE : View.GONE);
+            int det = running ? View.VISIBLE : View.GONE;
+            lName.setVisibility(det);
+            lBar.setVisibility(det);
+            lGraph.setVisibility(det);
+            lStats.setVisibility(det);
+            lButtons.setVisibility(det);
+            if (!running) lHead.setText(CopiaFotos.paused(MainActivity.this) ? "En pausa" : "Ahora mismo no está copiando");
             if (running) {
                 long sent = CopiaFotos.Live.sent(), total = CopiaFotos.Live.totalBytes;
                 float frac = total <= 0 ? 0 : (float) sent / total;
@@ -993,7 +1002,8 @@ public class MainActivity extends Activity {
                 seen[0] = seq;
             } else if (wasRunning[0] || CopiaFotos.Live.halt) {
                 String s2 = prefs.getString(CopiaFotos.K_STATUS, null);
-                st.setText("\nEstado: " + (s2 != null ? s2 : "esperando") + "\nCopiadas hasta ahora: " + prefs.getLong(CopiaFotos.K_TOTAL, 0));
+                st.setText("\nEstado: " + (s2 != null ? s2 : "esperando") + "\nCopiadas hasta ahora: " + prefs.getLong(CopiaFotos.K_TOTAL, 0)
+                        + "\nVersión de la app: " + Novedades.version(MainActivity.this) + " (" + versionCode() + ")");
             }
             if (nowRef[0] != null) nowRef[0].setText(CopiaFotos.paused(MainActivity.this) ? "Reanudar copia" : "Copiar ahora");
             wasRunning[0] = running;
@@ -1012,6 +1022,11 @@ public class MainActivity extends Activity {
             } });
             box.addView(now);
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private int versionCode() {
+        try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode; } catch (Exception e) { return 0; }
     }
 
     private void saveCopia(boolean wifi, boolean camera, String folder) {

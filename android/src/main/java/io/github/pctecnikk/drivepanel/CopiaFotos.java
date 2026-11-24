@@ -304,6 +304,7 @@ public class CopiaFotos extends JobService {
         Live.speed = 0;
         Live.start = System.currentTimeMillis();
         Live.running = true;
+        setStatus(c, "Copiando " + list.size() + " fotos y vídeos…");
         // Cada segundo: velocidad, grafica y aviso con %, velocidad y tiempo que queda
         Thread ticker = new Thread(new Runnable() { @Override public void run() {
             long last = Live.sent();
