@@ -150,11 +150,11 @@ final class Compartir {
                 + "function toastMsg(m){try{toast(m);}catch(e){}}"
                 + "function go2(){"
                 + " if(!ready()){if(++tries<600)setTimeout(go2,500);return;}"
-                + " toastMsg('Preparando '+L.length+(L.length==1?' archivo':' archivos')+' para subir…');"
+                + " toastMsg(" + JSONObject.quote(Tr.en() ? "Preparing " : "Preparando ") + "+L.length+(L.length==1?" + JSONObject.quote(Tr.t(" archivo")) + ":" + JSONObject.quote(Tr.t(" archivos")) + ")+" + JSONObject.quote(Tr.en() ? " to upload…" : " para subir…") + ");"
                 + " Promise.all(L.map(function(x){return fetch(x.u).then(function(r){if(!r.ok)throw new Error(r.status);return r.blob();})"
                 + "  .then(function(b){return {file:new File([b],x.n,{type:x.t||b.type}),rel:(F?F+'/':'')+x.n};});}))"
                 + " .then(function(fs){try{if(S.view!=='drive'||S.path)go('drive');}catch(e){}enqueue(fs,'');})"
-                + " .catch(function(e){toastMsg('No se han podido leer los archivos compartidos');});"
+                + " .catch(function(e){toastMsg(" + JSONObject.quote(Tr.t("No se han podido leer los archivos compartidos")) + ");});"
                 + "}"
                 + "go2();})();";
     }

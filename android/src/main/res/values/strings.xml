@@ -3,4 +3,5 @@
     <string name="app_name">DrivePanel</string>
     <string name="shortcut_server">Cambiar servidor</string>
     <string name="shortcut_novedades">Novedades y versión</string>
+    <string name="share_label">Subir a DrivePanel</string>
 </resources>

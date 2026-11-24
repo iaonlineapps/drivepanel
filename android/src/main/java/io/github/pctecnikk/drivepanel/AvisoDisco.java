@@ -64,6 +64,7 @@ public class AvisoDisco extends JobService {
     // ------------------------------------------------------------------ Comprobar
 
     static void check(Context c) throws Exception {
+        Tr.init(c);
         SharedPreferences p = CopiaFotos.prefs(c);
         String base = p.getString("server_url", null);
         String cookie = p.getString(CopiaFotos.K_COOKIE, null);
@@ -93,10 +94,13 @@ public class AvisoDisco extends JobService {
         String pct = String.format(Locale.forLanguageTag("es-ES"), "%.1f", a.optDouble("pct", 0));
         if (pct.endsWith(",0")) pct = pct.substring(0, pct.length() - 2);
         String free = Descargas.size(a.optLong("free", 0));
-        String title = level >= 2 ? "El disco de DrivePanel está lleno (" + pct + " %)"
-                                  : "El disco de DrivePanel está casi lleno (" + pct + " %)";
-        String text = level >= 2 ? "Solo quedan " + free + " libres. Puede que no se puedan subir más archivos."
-                                 : "Quedan " + free + " libres.";
+        boolean en = Tr.en();
+        if (en) pct = pct.replace(',', '.');
+        String title = level >= 2 ? (en ? "The DrivePanel disk is full (" : "El disco de DrivePanel está lleno (") + pct + " %)"
+                                  : (en ? "The DrivePanel disk is almost full (" : "El disco de DrivePanel está casi lleno (") + pct + " %)";
+        String text = level >= 2 ? (en ? "Only " + free + " free. You may not be able to upload more files."
+                                       : "Solo quedan " + free + " libres. Puede que no se puedan subir más archivos.")
+                                 : (en ? free + " free." : "Quedan " + free + " libres.");
         notify(c, nm, title, text);
     }
 
@@ -105,8 +109,8 @@ public class AvisoDisco extends JobService {
     private static NotificationManager notifications(Context c) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "Disco lleno", NotificationManager.IMPORTANCE_DEFAULT);
-            ch.setDescription("Aviso cuando el disco del servidor DrivePanel se está llenando");
+            NotificationChannel ch = new NotificationChannel(CHANNEL, Tr.t("Disco lleno"), NotificationManager.IMPORTANCE_DEFAULT);
+            ch.setDescription(Tr.t("Aviso cuando el disco del servidor DrivePanel se está llenando"));
             nm.createNotificationChannel(ch);
         }
         return nm;

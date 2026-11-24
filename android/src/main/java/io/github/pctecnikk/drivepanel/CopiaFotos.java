@@ -120,6 +120,7 @@ public class CopiaFotos extends JobService {
     @Override
     public boolean onStartJob(final JobParameters params) {
         stop = false;
+        Tr.init(this);
         new Thread(new Runnable() { @Override public void run() {
             boolean again = false;
             try {
@@ -250,13 +251,13 @@ public class CopiaFotos extends JobService {
     static void pause(Context c) {
         prefs(c).edit().putBoolean(K_PAUSED, true).apply();
         Live.halt = true;
-        setStatus(c, "En pausa: pulsa Reanudar para seguir copiando");
+        setStatus(c, Tr.t("En pausa: pulsa Reanudar para seguir copiando"));
         notifications(c).cancel(NOTIF_PROGRESS);
     }
 
     static void resume(Context c) {
         prefs(c).edit().putBoolean(K_PAUSED, false).apply();
-        setStatus(c, "Reanudando…");
+        setStatus(c, Tr.t("Reanudando…"));
         runNow(c);
     }
 
@@ -265,7 +266,7 @@ public class CopiaFotos extends JobService {
         Live.halt = true;
         prefs(c).edit().putBoolean(K_PAUSED, false)
                 .putLong(K_SINCE, System.currentTimeMillis() / 1000).putLong(K_SINCE_ID, Long.MAX_VALUE).apply();
-        setStatus(c, "Cancelada: las fotos que faltaban no se copian; las nuevas, sí");
+        setStatus(c, Tr.t("Cancelada: las fotos que faltaban no se copian; las nuevas, sí"));
         notifications(c).cancel(NOTIF_PROGRESS);
     }
 
@@ -297,15 +298,15 @@ public class CopiaFotos extends JobService {
         String cookie = p.getString(K_COOKIE, null);
         if (base == null) return false;
         if (cookie == null || cookie.isEmpty()) {
-            setStatus(c, "Abre DrivePanel y entra con tu usuario para que pueda copiar");
+            setStatus(c, Tr.t("Abre DrivePanel y entra con tu usuario para que pueda copiar"));
             return false;
         }
         List<Media> list = pending(c);
         if (list.isEmpty()) {
-            setStatus(c, "Todo copiado");
+            setStatus(c, Tr.t("Todo copiado"));
             return false;
         }
-        String folder = p.getString(K_FOLDER, DEFAULT_FOLDER);
+        String folder = p.getString(K_FOLDER, Tr.t(DEFAULT_FOLDER));
         String ua = "DrivePanelAndroid/" + version(c) + " (copia de fotos)";
         int done = 0, skipped = 0;
         final NotificationManager nm = notifications(c);
@@ -321,7 +322,7 @@ public class CopiaFotos extends JobService {
         Live.speed = 0;
         Live.start = System.currentTimeMillis();
         Live.running = true;
-        setStatus(c, "Copiando " + list.size() + " fotos y vídeos…");
+        setStatus(c, Tr.t("Copiando ") + list.size() + Tr.t(" fotos y vídeos…"));
         // Cada segundo: velocidad, grafica y aviso con %, velocidad y tiempo que queda
         Thread ticker = new Thread(new Runnable() { @Override public void run() {
             long last = Live.sent();
@@ -347,7 +348,7 @@ public class CopiaFotos extends JobService {
             for (int i = 0; i < list.size(); i++) {
                 if (stop.stop()) {
                     if (Live.halt) return false;
-                    setStatus(c, "En pausa (" + (list.size() - i) + " pendientes)");
+                    setStatus(c, Tr.t("En pausa (") + (list.size() - i) + Tr.t(" pendientes)"));
                     return true;
                 }
                 Media m = list.get(i);
@@ -359,17 +360,17 @@ public class CopiaFotos extends JobService {
                 int r = upload(new Opener() { @Override public InputStream open(Media x) throws Exception { return cr.openInputStream(x.uri); } },
                         base, cookie, ua, folder, m, stop);
                 if (r == 401) {
-                    setStatus(c, "Tienes que volver a entrar en DrivePanel (la sesión ha caducado)");
-                    result(c, nm, "La copia de fotos está parada", "Abre DrivePanel y vuelve a entrar con tu usuario.");
+                    setStatus(c, Tr.t("Tienes que volver a entrar en DrivePanel (la sesión ha caducado)"));
+                    result(c, nm, Tr.t("La copia de fotos está parada"), Tr.t("Abre DrivePanel y vuelve a entrar con tu usuario."));
                     return false;
                 }
                 if (r == -2) { // cortado a medias
                     if (Live.halt) return false; // pausada o cancelada desde la app
-                    setStatus(c, "En pausa (" + (list.size() - i) + " pendientes)");
+                    setStatus(c, Tr.t("En pausa (") + (list.size() - i) + Tr.t(" pendientes)"));
                     return true;
                 }
                 if (r != 200 && r != -1) {
-                    setStatus(c, "Error " + r + " al subir " + m.name + "; se reintentará");
+                    setStatus(c, Tr.t("Error ") + r + Tr.t(" al subir ") + m.name + Tr.t("; se reintentará"));
                     return true;
                 }
                 if (r == -1) skipped++; else done++;
@@ -386,9 +387,9 @@ public class CopiaFotos extends JobService {
         }
         String when = new SimpleDateFormat("d/M HH:mm", new Locale("es", "ES")).format(new Date());
         p.edit().putString(K_LAST, when).apply();
-        setStatus(c, "Todo copiado · última copia " + when);
-        if (done > 0) result(c, nm, done == 1 ? "1 foto o vídeo copiado a DrivePanel" : done + " fotos y vídeos copiados a DrivePanel",
-                "Carpeta: " + (folder.isEmpty() ? "Mi unidad" : folder));
+        setStatus(c, Tr.t("Todo copiado · última copia ") + when);
+        if (done > 0) result(c, nm, done == 1 ? Tr.t("1 foto o vídeo copiado a DrivePanel") : done + Tr.t(" fotos y vídeos copiados a DrivePanel"),
+                Tr.t("Carpeta: ") + (folder.isEmpty() ? Tr.t("Mi unidad") : folder));
         return false;
     }
 
@@ -464,8 +465,8 @@ public class CopiaFotos extends JobService {
     private static NotificationManager notifications(Context c) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "Copia de fotos", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("Progreso de la copia automática de fotos y vídeos");
+            NotificationChannel ch = new NotificationChannel(CHANNEL, Tr.t("Copia de fotos"), NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription(Tr.t("Progreso de la copia automática de fotos y vídeos"));
             nm.createNotificationChannel(ch);
         }
         return nm;
@@ -480,10 +481,10 @@ public class CopiaFotos extends JobService {
 
     /** Una linea con lo que se lleva: "120 MB de 980 MB · 2,1 MB/s · quedan 4 min". */
     static String stats() {
-        StringBuilder b = new StringBuilder(Descargas.size(Live.sent()) + " de " + Descargas.size(Live.totalBytes));
+        StringBuilder b = new StringBuilder(Descargas.size(Live.sent()) + Tr.t(" de ") + Descargas.size(Live.totalBytes));
         if (Live.speed > 0) b.append(" · ").append(Descargas.size(Live.speed)).append("/s");
         long eta = Live.eta();
-        if (eta >= 0) b.append(" · quedan ").append(Descargas.time(eta));
+        if (eta >= 0) b.append(Tr.t(" · quedan ")).append(Descargas.time(eta));
         return b.toString();
     }
 
@@ -493,15 +494,15 @@ public class CopiaFotos extends JobService {
             int pct = Live.percent();
             nm.notify(NOTIF_PROGRESS, builder(c)
                     .setSmallIcon(android.R.drawable.stat_sys_upload)
-                    .setContentTitle("Copiando fotos: " + Live.index + " de " + Live.count + " · " + pct + " %")
+                    .setContentTitle(Tr.t("Copiando fotos: ") + Live.index + Tr.t(" de ") + Live.count + " · " + pct + " %")
                     .setContentText(stats())
                     .setSubText(Live.name)
                     .setStyle(new Notification.BigTextStyle().bigText(stats() + "\n" + Live.name))
                     .setProgress(1000, Live.totalBytes <= 0 ? 0 : (int) Math.min(1000, Live.sent() * 1000 / Live.totalBytes), false)
                     .setOngoing(true)
                     .setOnlyAlertOnce(true)
-                    .addAction(android.R.drawable.ic_media_pause, "Pausar", action(c, AccionCopia.PAUSE))
-                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Cancelar", action(c, AccionCopia.CANCEL))
+                    .addAction(android.R.drawable.ic_media_pause, Tr.t("Pausar"), action(c, AccionCopia.PAUSE))
+                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, Tr.t("Cancelar"), action(c, AccionCopia.CANCEL))
                     .build());
         } catch (Exception ignored) { } // sin permiso de notificaciones: no pasa nada
     }

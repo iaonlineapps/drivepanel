@@ -99,6 +99,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        Tr.init(this);
         CopiaFotos.ensureScheduled(this);
         AvisoDisco.ensureScheduled(this);
         root = new FrameLayout(this);
@@ -148,7 +149,7 @@ public class MainActivity extends Activity {
         String url = d.getQueryParameter("url");
         String name = d.getQueryParameter("name");
         if (url == null || !url.matches("(?i)^https?://.+")) {
-            toast("Enlace no válido");
+            toast(Tr.t("Enlace no válido"));
             return;
         }
         Uri u = Uri.parse(url);
@@ -180,13 +181,13 @@ public class MainActivity extends Activity {
     private void handleShare(Intent intent) {
         Compartir c = Compartir.from(intent, getContentResolver());
         if (c == null) {
-            toast("Solo se pueden compartir fotos y archivos con DrivePanel");
+            toast(Tr.t("Solo se pueden compartir fotos y archivos con DrivePanel"));
             return;
         }
         String url = prefs.getString(KEY_URL, null);
         if (url == null) {
             pendingShare = c;
-            toast("Primero conecta con tu servidor DrivePanel; luego se suben los archivos");
+            toast(Tr.t("Primero conecta con tu servidor DrivePanel; luego se suben los archivos"));
             return;
         }
         if (web == null) showWeb(url, null);
@@ -198,30 +199,30 @@ public class MainActivity extends Activity {
         long total = c.totalSize();
         final EditText folder = new EditText(this);
         folder.setSingleLine(true);
-        folder.setText(prefs.getString(KEY_SHARE_FOLDER, "Del móvil"));
+        folder.setText(prefs.getString(KEY_SHARE_FOLDER, Tr.t("Del móvil")));
         folder.setSelectAllOnFocus(true);
-        folder.setHint("Vacío = Mi unidad");
+        folder.setHint(Tr.t("Vacío = Mi unidad"));
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(22), dp(4), dp(22), 0);
         TextView t = new TextView(this);
-        t.setText((n == 1 ? "1 archivo" : n + " archivos") + (total > 0 ? " (" + Descargas.size(total) + ")" : "")
-                + ".\n\nCarpeta de DrivePanel donde se guardan (se crea si no existe; vacío = Mi unidad). "
-                + "Para una subcarpeta usa /, por ejemplo Fotos/Viaje.");
+        t.setText((n == 1 ? Tr.t("1 archivo") : n + Tr.t(" archivos")) + (total > 0 ? " (" + Descargas.size(total) + ")" : "")
+                + Tr.t(".\n\nCarpeta de DrivePanel donde se guardan (se crea si no existe; vacío = Mi unidad). ")
+                + Tr.t("Para una subcarpeta usa /, por ejemplo Fotos/Viaje."));
         t.setTextSize(14);
         box.addView(t);
         box.addView(folder);
         new AlertDialog.Builder(this)
-                .setTitle("Subir a DrivePanel")
+                .setTitle(Tr.t("Subir a DrivePanel"))
                 .setView(box)
-                .setPositiveButton("Subir", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                .setPositiveButton(Tr.t("Subir"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
                     String f = folder.getText().toString().trim().replace('\\', '/');
                     while (f.startsWith("/")) f = f.substring(1);
                     while (f.endsWith("/")) f = f.substring(0, f.length() - 1);
                     prefs.edit().putString(KEY_SHARE_FOLDER, f).apply();
                     startShareUpload(c, f);
                 } })
-                .setNegativeButton("Cancelar", null)
+                .setNegativeButton(Tr.t("Cancelar"), null)
                 .show();
     }
 
@@ -275,11 +276,11 @@ public class MainActivity extends Activity {
         box.addView(title);
 
         TextView info = new TextView(this);
-        info.setText("Escribe la dirección de tu DrivePanel, la misma que pones en el navegador.\n\n"
-                + "• En casa (con la wifi de casa): la IP de tu servidor y el puerto 8090, "
-                + "por ejemplo 192.168.1.x:8090\n\n"
-                + "• Fuera de casa (datos móviles u otra wifi): la IP de casa no funciona. "
-                + "Pon tu dirección pública si la tienes, por ejemplo https://nube.midominio.com");
+        info.setText(Tr.t("Escribe la dirección de tu DrivePanel, la misma que pones en el navegador.\n\n")
+                + Tr.t("• En casa (con la wifi de casa): la IP de tu servidor y el puerto 8090, ")
+                + Tr.t("por ejemplo 192.168.1.x:8090\n\n")
+                + Tr.t("• Fuera de casa (datos móviles u otra wifi): la IP de casa no funciona. ")
+                + Tr.t("Pon tu dirección pública si la tienes, por ejemplo https://nube.midominio.com"));
         info.setTextSize(15);
         info.setTextColor(0xFF444746);
         info.setGravity(Gravity.START);
@@ -287,9 +288,9 @@ public class MainActivity extends Activity {
         box.addView(info);
 
         TextView need = new TextView(this);
-        need.setText("Importante: esta app necesita tu propio servidor DrivePanel ya instalado "
-                + "(en una Raspberry Pi o un ordenador con Linux y Docker). Sin servidor no funciona.\n"
-                + "¿Aún no lo tienes? Toca aquí para ver cómo instalarlo.");
+        need.setText(Tr.t("Importante: esta app necesita tu propio servidor DrivePanel ya instalado ")
+                + Tr.t("(en una Raspberry Pi o un ordenador con Linux y Docker). Sin servidor no funciona.\n")
+                + Tr.t("¿Aún no lo tienes? Toca aquí para ver cómo instalarlo."));
         need.setTextSize(14);
         need.setTextColor(0xFF7A4F01);
         need.setPadding(dp(14), dp(12), dp(14), dp(12));
@@ -305,7 +306,7 @@ public class MainActivity extends Activity {
         box.addView(need, nlp);
 
         final EditText input = new EditText(this);
-        input.setHint("Dirección del servidor");
+        input.setHint(Tr.t("Dirección del servidor"));
         input.setSingleLine(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         input.setImeOptions(EditorInfo.IME_ACTION_GO);
@@ -321,7 +322,7 @@ public class MainActivity extends Activity {
         box.addView(status);
 
         final Button connect = new Button(this);
-        connect.setText("Conectar");
+        connect.setText(Tr.t("Conectar"));
         connect.setTextColor(Color.WHITE);
         connect.setBackgroundColor(BLUE);
         box.addView(connect, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
@@ -330,12 +331,12 @@ public class MainActivity extends Activity {
             @Override public void run() {
                 final String url = normalize(input.getText().toString());
                 if (url == null) {
-                    status.setText("Escribe una dirección válida.");
+                    status.setText(Tr.t("Escribe una dirección válida."));
                     return;
                 }
                 connect.setEnabled(false);
                 status.setTextColor(0xFF444746);
-                status.setText("Comprobando " + url + " …");
+                status.setText(Tr.t("Comprobando ") + url + " …");
                 checkServer(url, new CheckResult() {
                     @Override public void done(boolean ok, String error) {
                         connect.setEnabled(true);
@@ -346,10 +347,10 @@ public class MainActivity extends Activity {
                         status.setTextColor(0xFFB3261E);
                         status.setText(error);
                         new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("No se ha podido comprobar")
-                                .setMessage(error + "\n\n¿Quieres usar esta dirección de todas formas?")
-                                .setPositiveButton("Usarla", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) { saveAndOpen(url); } })
-                                .setNegativeButton("Corregir", null)
+                                .setTitle(Tr.t("No se ha podido comprobar"))
+                                .setMessage(error + Tr.t("\n\n¿Quieres usar esta dirección de todas formas?"))
+                                .setPositiveButton(Tr.t("Usarla"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) { saveAndOpen(url); } })
+                                .setNegativeButton(Tr.t("Corregir"), null)
                                 .show();
                     }
                 });
@@ -366,15 +367,15 @@ public class MainActivity extends Activity {
         } });
 
         TextView help = new TextView(this);
-        help.setText("\nPuedes cambiar la dirección más tarde: mantén pulsado el icono "
-                + "de DrivePanel y elige «Cambiar servidor», o pulsa Atrás en la pantalla principal.");
+        help.setText(Tr.t("\nPuedes cambiar la dirección más tarde: mantén pulsado el icono ")
+                + Tr.t("de DrivePanel y elige «Cambiar servidor», o pulsa Atrás en la pantalla principal."));
         help.setTextSize(13);
         help.setTextColor(0xFF5F6368);
         help.setGravity(Gravity.CENTER);
         box.addView(help);
 
         TextView ver = new TextView(this);
-        ver.setText("\nVersión " + Novedades.version(this) + " · Ver novedades");
+        ver.setText(Tr.t("\nVersión ") + Novedades.version(this) + Tr.t(" · Ver novedades"));
         ver.setTextSize(13);
         ver.setTextColor(BLUE);
         ver.setGravity(Gravity.CENTER);
@@ -419,18 +420,18 @@ public class MainActivity extends Activity {
                     String body = n > 0 ? new String(buf, 0, n, "UTF-8") : "";
                     in.close();
                     ok = body.contains("DrivePanel");
-                    error = ok ? null : "Esa dirección responde, pero no parece un DrivePanel.";
+                    error = ok ? null : Tr.t("Esa dirección responde, pero no parece un DrivePanel.");
                 } else {
-                    error = "El servidor ha respondido con un error (" + code + ").";
+                    error = Tr.t("El servidor ha respondido con un error (") + code + ").";
                 }
             } catch (javax.net.ssl.SSLException e) {
-                error = "Problema con el certificado https del servidor.";
+                error = Tr.t("Problema con el certificado https del servidor.");
             } catch (java.net.UnknownHostException e) {
-                error = "No se encuentra esa dirección. Revisa que esté bien escrita.";
+                error = Tr.t("No se encuentra esa dirección. Revisa que esté bien escrita.");
             } catch (java.net.SocketTimeoutException e) {
-                error = "El servidor no contesta. Si has puesto la IP de casa, comprueba que estás conectado a la wifi de casa.";
+                error = Tr.t("El servidor no contesta. Si has puesto la IP de casa, comprueba que estás conectado a la wifi de casa.");
             } catch (Exception e) {
-                error = "No se puede conectar. Si has puesto la IP de casa, comprueba que estás conectado a la wifi de casa.";
+                error = Tr.t("No se puede conectar. Si has puesto la IP de casa, comprueba que estás conectado a la wifi de casa.");
             } finally {
                 if (c != null) c.disconnect();
             }
@@ -500,7 +501,7 @@ public class MainActivity extends Activity {
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, u));
                 } catch (ActivityNotFoundException e) {
-                    toast("No hay ninguna app para abrir este enlace");
+                    toast(Tr.t("No hay ninguna app para abrir este enlace"));
                 }
                 return true;
             }
@@ -555,10 +556,10 @@ public class MainActivity extends Activity {
                     nextIsFolder = false;
                     try {
                         startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_FOLDER);
-                        toast("Elige la carpeta y toca «Usar esta carpeta»");
+                        toast(Tr.t("Elige la carpeta y toca «Usar esta carpeta»"));
                         return true;
                     } catch (ActivityNotFoundException e) {
-                        toast("Este móvil no deja elegir carpetas; elige los archivos");
+                        toast(Tr.t("Este móvil no deja elegir carpetas; elige los archivos"));
                     }
                 }
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -573,10 +574,10 @@ public class MainActivity extends Activity {
                     i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                 }
                 try {
-                    startActivityForResult(Intent.createChooser(i, "Elegir archivos"), REQ_FILES);
+                    startActivityForResult(Intent.createChooser(i, Tr.t("Elegir archivos")), REQ_FILES);
                 } catch (ActivityNotFoundException e) {
                     fileCallback = null;
-                    toast("No hay ninguna app para elegir archivos");
+                    toast(Tr.t("No hay ninguna app para elegir archivos"));
                     return false;
                 }
                 return true;
@@ -594,7 +595,7 @@ public class MainActivity extends Activity {
             startDownload(d);
         } });
 
-        if (state == null) Toast.makeText(this, "DrivePanel · App Android " + Novedades.version(this), Toast.LENGTH_SHORT).show();
+        if (state == null) Toast.makeText(this, Tr.t("DrivePanel · App Android ") + Novedades.version(this), Toast.LENGTH_SHORT).show();
         Novedades.check(this, prefs, false);
         if (state != null && web.restoreState(state) != null) return;
         // La web 1.0.2 o mas nueva ya abre la pantalla de inicio elegida; con una mas antigua
@@ -619,16 +620,16 @@ public class MainActivity extends Activity {
         final String[] keys = {"panel", "drive"};
         int cur = "drive".equals(startView()) ? 1 : 0;
         new AlertDialog.Builder(this)
-                .setTitle("Al abrir la app, mostrar")
-                .setSingleChoiceItems(new CharSequence[]{"Panel de actividad", "Mi unidad"}, cur, new android.content.DialogInterface.OnClickListener() {
+                .setTitle(Tr.t("Al abrir la app, mostrar"))
+                .setSingleChoiceItems(new CharSequence[]{Tr.t("Panel de actividad"), Tr.t("Mi unidad")}, cur, new android.content.DialogInterface.OnClickListener() {
                     @Override public void onClick(android.content.DialogInterface d, int which) {
                         prefs.edit().putString(KEY_START, keys[which]).apply();
                         if (web != null) web.evaluateJavascript("try{localStorage.setItem('dp-home','" + keys[which] + "')}catch(e){}", null);
                         d.dismiss();
-                        toast("Al abrir la app verás: " + (which == 0 ? "Panel de actividad" : "Mi unidad"));
+                        toast(Tr.t("Al abrir la app verás: ") + (which == 0 ? Tr.t("Panel de actividad") : Tr.t("Mi unidad")));
                     }
                 })
-                .setNegativeButton("Cancelar", null)
+                .setNegativeButton(Tr.t("Cancelar"), null)
                 .show();
     }
 
@@ -636,14 +637,14 @@ public class MainActivity extends Activity {
         if (errorShown || isFinishing()) return;
         errorShown = true;
         new AlertDialog.Builder(this)
-                .setTitle("No se puede conectar")
-                .setMessage("No se ha podido abrir " + base + ".\n\nComprueba que el servidor está encendido. Si usas la IP de casa (192.168...), solo funciona conectado a la wifi de casa; fuera de casa pon tu dirección pública.")
+                .setTitle(Tr.t("No se puede conectar"))
+                .setMessage(Tr.t("No se ha podido abrir ") + base + Tr.t(".\n\nComprueba que el servidor está encendido. Si usas la IP de casa (192.168...), solo funciona conectado a la wifi de casa; fuera de casa pon tu dirección pública."))
                 .setCancelable(false)
-                .setPositiveButton("Reintentar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                .setPositiveButton(Tr.t("Reintentar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
                     errorShown = false;
                     if (web != null) web.loadUrl(base + "/");
                 } })
-                .setNegativeButton("Cambiar servidor", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) { showSetup(base, null); } })
+                .setNegativeButton(Tr.t("Cambiar servidor"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) { showSetup(base, null); } })
                 .show();
     }
 
@@ -689,7 +690,7 @@ public class MainActivity extends Activity {
             DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             return dm.enqueue(r);
         } catch (Exception e) {
-            toast("No se ha podido descargar: " + e.getMessage());
+            toast(Tr.t("No se ha podido descargar: ") + e.getMessage());
             return -1;
         }
     }
@@ -726,9 +727,9 @@ public class MainActivity extends Activity {
                 prefs.edit().putBoolean(CopiaFotos.K_ON, true).apply();
                 CopiaFotos.schedule(this);
                 CopiaFotos.runNow(this);
-                toast("Copia automática activada");
+                toast(Tr.t("Copia automática activada"));
             } else {
-                toast("Sin permiso para ver tus fotos no se puede hacer la copia");
+                toast(Tr.t("Sin permiso para ver tus fotos no se puede hacer la copia"));
             }
             showCopia();
             return;
@@ -739,7 +740,7 @@ public class MainActivity extends Activity {
             if (d != null && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
                 startDownload(d);
             } else if (d != null) {
-                toast("Sin permiso no se puede guardar la descarga");
+                toast(Tr.t("Sin permiso no se puede guardar la descarga"));
             }
         }
     }
@@ -776,7 +777,7 @@ public class MainActivity extends Activity {
      * sea antiguo y no lo haga el. Si el servidor ya lo hace (#sideVersion / #menuVersion), no toca nada.
      */
     private String versionJs() {
-        String v = "App Android " + Novedades.version(this);
+        String v = Tr.t("App Android ") + Novedades.version(this);
         return "(function(){var v=" + org.json.JSONObject.quote(v) + ";"
                 + "var st='font-size:11px;color:#80868b;text-align:center;';"
                 + "var sb=document.getElementById('sidebar');"
@@ -805,13 +806,13 @@ public class MainActivity extends Activity {
             cb.onReceiveValue(null);
             return;
         }
-        toast("Leyendo la carpeta…");
+        toast(Tr.t("Leyendo la carpeta…"));
         final Handler main = new Handler(Looper.getMainLooper());
         new Thread(new Runnable() { @Override public void run() {
             final Carpeta.Result r = Carpeta.list(getContentResolver(), tree);
             main.post(new Runnable() { @Override public void run() {
                 if (r.uris.isEmpty() || web == null) {
-                    toast("La carpeta «" + r.name + "» está vacía o no se puede leer");
+                    toast(Tr.t("La carpeta «") + r.name + Tr.t("» está vacía o no se puede leer"));
                     cb.onReceiveValue(null);
                     return;
                 }
@@ -835,6 +836,13 @@ public class MainActivity extends Activity {
             String c = CookieManager.getInstance().getCookie(base);
             if (c != null && !c.equals(prefs.getString(CopiaFotos.K_COOKIE, null))) {
                 prefs.edit().putString(CopiaFotos.K_COOKIE, c).apply();
+            }
+            // El idioma elegido en la web (cookie dp_lang) manda tambien en las pantallas de la app
+            if (c != null) {
+                for (String part : c.split(";")) {
+                    String kv = part.trim();
+                    if (kv.startsWith("dp_lang=")) Tr.set(this, kv.substring(8).trim());
+                }
             }
             if (c != null && c.contains("dp_session=")) askNotifications();
         } catch (Exception ignored) { }
@@ -871,28 +879,28 @@ public class MainActivity extends Activity {
         box.setPadding(dp(22), dp(6), dp(22), 0);
 
         TextView info = new TextView(this);
-        info.setText("Como Google Fotos: DrivePanel sube solo las fotos y vídeos nuevos del móvil a una carpeta "
-                + "de tu servidor, con una subcarpeta por álbum (Camera, WhatsApp Images…). Lo que ya esté subido no se repite.");
+        info.setText(Tr.t("Como Google Fotos: DrivePanel sube solo las fotos y vídeos nuevos del móvil a una carpeta ")
+                + Tr.t("de tu servidor, con una subcarpeta por álbum (Camera, WhatsApp Images…). Lo que ya esté subido no se repite."));
         info.setTextSize(14);
         box.addView(info);
 
         final android.widget.CheckBox wifi = new android.widget.CheckBox(this);
-        wifi.setText("Solo con wifi (no gasta datos)");
+        wifi.setText(Tr.t("Solo con wifi (no gasta datos)"));
         wifi.setChecked(prefs.getBoolean(CopiaFotos.K_WIFI, true));
         box.addView(wifi);
 
         final android.widget.CheckBox camera = new android.widget.CheckBox(this);
-        camera.setText("Solo fotos y vídeos de la cámara (sin WhatsApp ni capturas)");
+        camera.setText(Tr.t("Solo fotos y vídeos de la cámara (sin WhatsApp ni capturas)"));
         camera.setChecked(prefs.getBoolean(CopiaFotos.K_CAMERA, true));
         box.addView(camera);
 
         TextView fl = new TextView(this);
-        fl.setText("\nCarpeta de DrivePanel (se crea si no existe):");
+        fl.setText(Tr.t("\nCarpeta de DrivePanel (se crea si no existe):"));
         fl.setTextSize(14);
         box.addView(fl);
         final EditText folder = new EditText(this);
         folder.setSingleLine(true);
-        folder.setText(prefs.getString(CopiaFotos.K_FOLDER, CopiaFotos.DEFAULT_FOLDER));
+        folder.setText(prefs.getString(CopiaFotos.K_FOLDER, Tr.t(CopiaFotos.DEFAULT_FOLDER)));
         box.addView(folder);
 
         // Progreso en directo (como las subidas y descargas): %, archivo, grafica, velocidad y tiempo
@@ -923,22 +931,22 @@ public class MainActivity extends Activity {
         final LinearLayout lButtons = new LinearLayout(this);
         lButtons.setOrientation(LinearLayout.HORIZONTAL);
         Button lPause = new Button(this);
-        lPause.setText("Pausar");
+        lPause.setText(Tr.t("Pausar"));
         lPause.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
             CopiaFotos.pause(MainActivity.this);
-            toast("Copia en pausa");
+            toast(Tr.t("Copia en pausa"));
         } });
         Button lCancel = new Button(this);
-        lCancel.setText("Cancelar");
+        lCancel.setText(Tr.t("Cancelar"));
         lCancel.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
             new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("¿Cancelar la copia?")
-                    .setMessage("Las fotos y vídeos que faltan no se copiarán. Las fotos nuevas que hagas a partir de ahora sí se seguirán copiando solas.")
-                    .setPositiveButton("Cancelar copia", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                    .setTitle(Tr.t("¿Cancelar la copia?"))
+                    .setMessage(Tr.t("Las fotos y vídeos que faltan no se copiarán. Las fotos nuevas que hagas a partir de ahora sí se seguirán copiando solas."))
+                    .setPositiveButton(Tr.t("Cancelar copia"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
                         CopiaFotos.cancel(MainActivity.this);
-                        toast("Copia cancelada");
+                        toast(Tr.t("Copia cancelada"));
                     } })
-                    .setNegativeButton("Seguir copiando", null)
+                    .setNegativeButton(Tr.t("Seguir copiando"), null)
                     .show();
         } });
         LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
@@ -950,30 +958,30 @@ public class MainActivity extends Activity {
         final TextView st = new TextView(this);
         String status = prefs.getString(CopiaFotos.K_STATUS, null);
         long total = prefs.getLong(CopiaFotos.K_TOTAL, 0);
-        st.setText(on ? "\nEstado: " + (status != null ? status : "esperando") + "\nCopiadas hasta ahora: " + total
-                : "\nAhora está desactivada.");
-        st.append("\nVersión de la app: " + Novedades.version(this) + " (" + versionCode() + ")");
+        st.setText(on ? Tr.t("\nEstado: ") + (status != null ? status : Tr.t("esperando")) + Tr.t("\nCopiadas hasta ahora: ") + total
+                : Tr.t("\nAhora está desactivada."));
+        st.append(Tr.t("\nVersión de la app: ") + Novedades.version(this) + " (" + versionCode() + ")");
         st.setTextSize(13);
         st.setTextColor(0xFF5F6368);
         box.addView(st);
 
         AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle("Copia automática de fotos")
+                .setTitle(Tr.t("Copia automática de fotos"))
                 .setView(box)
-                .setNegativeButton("Cerrar", null);
+                .setNegativeButton(Tr.t("Cerrar"), null);
         if (on) {
-            b.setPositiveButton("Guardar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+            b.setPositiveButton(Tr.t("Guardar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
                 saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
                 CopiaFotos.schedule(MainActivity.this);
-                toast("Guardado");
+                toast(Tr.t("Guardado"));
             } });
-            b.setNeutralButton("Desactivar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+            b.setNeutralButton(Tr.t("Desactivar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
                 prefs.edit().putBoolean(CopiaFotos.K_ON, false).apply();
                 CopiaFotos.cancelAll(MainActivity.this);
-                toast("Copia automática desactivada");
+                toast(Tr.t("Copia automática desactivada"));
             } });
         } else {
-            b.setPositiveButton("Activar", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+            b.setPositiveButton(Tr.t("Activar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
                 saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
                 askWhichPhotos();
             } });
@@ -994,11 +1002,11 @@ public class MainActivity extends Activity {
             lGraph.setVisibility(det);
             lStats.setVisibility(det);
             lButtons.setVisibility(det);
-            if (!running) lHead.setText(CopiaFotos.paused(MainActivity.this) ? "En pausa" : "Ahora mismo no está copiando");
+            if (!running) lHead.setText(CopiaFotos.paused(MainActivity.this) ? Tr.t("En pausa") : Tr.t("Ahora mismo no está copiando"));
             if (running) {
                 long sent = CopiaFotos.Live.sent(), total = CopiaFotos.Live.totalBytes;
                 float frac = total <= 0 ? 0 : (float) sent / total;
-                lHead.setText("Copiando " + CopiaFotos.Live.index + " de " + CopiaFotos.Live.count + " · " + CopiaFotos.Live.percent() + " %");
+                lHead.setText(Tr.t("Copiando ") + CopiaFotos.Live.index + Tr.t(" de ") + CopiaFotos.Live.count + " · " + CopiaFotos.Live.percent() + " %");
                 lName.setText(CopiaFotos.Live.name);
                 lBar.setProgress((int) (frac * 1000));
                 lStats.setText(CopiaFotos.stats());
@@ -1013,10 +1021,10 @@ public class MainActivity extends Activity {
                 seen[0] = seq;
             } else if (wasRunning[0] || CopiaFotos.Live.halt) {
                 String s2 = prefs.getString(CopiaFotos.K_STATUS, null);
-                st.setText("\nEstado: " + (s2 != null ? s2 : "esperando") + "\nCopiadas hasta ahora: " + prefs.getLong(CopiaFotos.K_TOTAL, 0)
-                        + "\nVersión de la app: " + Novedades.version(MainActivity.this) + " (" + versionCode() + ")");
+                st.setText(Tr.t("\nEstado: ") + (s2 != null ? s2 : Tr.t("esperando")) + Tr.t("\nCopiadas hasta ahora: ") + prefs.getLong(CopiaFotos.K_TOTAL, 0)
+                        + Tr.t("\nVersión de la app: ") + Novedades.version(MainActivity.this) + " (" + versionCode() + ")");
             }
-            if (nowRef[0] != null) nowRef[0].setText(CopiaFotos.paused(MainActivity.this) ? "Reanudar copia" : "Copiar ahora");
+            if (nowRef[0] != null) nowRef[0].setText(CopiaFotos.paused(MainActivity.this) ? Tr.t("Reanudar copia") : Tr.t("Copiar ahora"));
             wasRunning[0] = running;
             ui.postDelayed(this, 1000);
         } });
@@ -1024,12 +1032,12 @@ public class MainActivity extends Activity {
             // "Copiar ahora" sin cerrar el dialogo de un toque accidental
             final Button now = new Button(this);
             nowRef[0] = now;
-            now.setText(CopiaFotos.paused(this) ? "Reanudar copia" : "Copiar ahora");
+            now.setText(CopiaFotos.paused(this) ? Tr.t("Reanudar copia") : Tr.t("Copiar ahora"));
             now.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
                 saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
                 if (CopiaFotos.paused(MainActivity.this)) CopiaFotos.resume(MainActivity.this);
                 else CopiaFotos.runNow(MainActivity.this);
-                toast("Copiando…");
+                toast(Tr.t("Copiando…"));
             } });
             box.addView(now);
         }
@@ -1050,8 +1058,8 @@ public class MainActivity extends Activity {
 
     private void askWhichPhotos() {
         new AlertDialog.Builder(this)
-                .setTitle("¿Qué fotos copio?")
-                .setItems(new CharSequence[]{"Solo las nuevas, desde ahora", "También todas las que ya tengo en el móvil"},
+                .setTitle(Tr.t("¿Qué fotos copio?"))
+                .setItems(new CharSequence[]{Tr.t("Solo las nuevas, desde ahora"), Tr.t("También todas las que ya tengo en el móvil")},
                         new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
                             long since = which == 0 ? System.currentTimeMillis() / 1000 : 0;
                             prefs.edit().putLong(CopiaFotos.K_SINCE, since).putLong(CopiaFotos.K_SINCE_ID, -1).apply();
@@ -1059,13 +1067,13 @@ public class MainActivity extends Activity {
                                 prefs.edit().putBoolean(CopiaFotos.K_ON, true).apply();
                                 CopiaFotos.schedule(MainActivity.this);
                                 CopiaFotos.runNow(MainActivity.this);
-                                toast("Copia automática activada");
+                                toast(Tr.t("Copia automática activada"));
                                 if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, REQ_STORAGE + 10);
                             } else {
                                 requestPermissions(mediaPermissions(), REQ_MEDIA);
                             }
                         } })
-                .setNegativeButton("Cancelar", null)
+                .setNegativeButton(Tr.t("Cancelar"), null)
                 .show();
     }
 
@@ -1102,7 +1110,7 @@ public class MainActivity extends Activity {
         }
         new AlertDialog.Builder(this)
                 .setTitle("DrivePanel")
-                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades (versión " + Novedades.version(this) + ")", "Pantalla al abrir: " + ("drive".equals(startView()) ? "Mi unidad" : "Panel de actividad"), "Copia automática de fotos: " + (prefs.getBoolean(CopiaFotos.K_ON, false) ? "activada" : "desactivada")}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
+                .setItems(new CharSequence[]{Tr.t("Salir"), Tr.t("Cambiar servidor"), Tr.t("Recargar"), Tr.t("Novedades (versión ") + Novedades.version(this) + ")", Tr.t("Pantalla al abrir: ") + ("drive".equals(startView()) ? Tr.t("Mi unidad") : Tr.t("Panel de actividad")), Tr.t("Copia automática de fotos: ") + (prefs.getBoolean(CopiaFotos.K_ON, false) ? Tr.t("activada") : Tr.t("desactivada"))}, new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
                     if (which == 0) finish();
                     else if (which == 1) showSetup(prefs.getString(KEY_URL, null), null);
                     else if (which == 3) Novedades.show(MainActivity.this, prefs, null);
@@ -1110,7 +1118,7 @@ public class MainActivity extends Activity {
                     else if (which == 5) showCopia();
                     else if (web != null) web.reload();
                 } })
-                .setNegativeButton("Cancelar", null)
+                .setNegativeButton(Tr.t("Cancelar"), null)
                 .show();
     }
 

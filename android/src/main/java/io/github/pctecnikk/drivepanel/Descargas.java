@@ -299,7 +299,7 @@ final class Descargas {
         save();
         if (active) {
             setMinimized(true);
-            Toast.makeText(a, "Las descargas en curso siguen; el panel se queda minimizado", Toast.LENGTH_SHORT).show();
+            Toast.makeText(a, Tr.t("Las descargas en curso siguen; el panel se queda minimizado"), Toast.LENGTH_SHORT).show();
         }
         refresh();
     }
@@ -366,7 +366,7 @@ final class Descargas {
                 if (isActive(st)) active = true;
                 if (!it.notified && st == DownloadManager.STATUS_SUCCESSFUL) {
                     it.notified = true;
-                    Toast.makeText(a, "Descargado: " + it.name, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(a, Tr.t("Descargado: ") + it.name, Toast.LENGTH_SHORT).show();
                 } else if (!it.notified && st == DownloadManager.STATUS_FAILED) {
                     it.notified = true;
                 }
@@ -390,30 +390,30 @@ final class Descargas {
 
         String text;
         if (st == DownloadManager.STATUS_PENDING) {
-            text = "Empezando…";
+            text = Tr.t("Empezando…");
         } else if (st == DownloadManager.STATUS_RUNNING) {
             StringBuilder b = new StringBuilder();
             b.append(size(done));
-            if (known) b.append(" de ").append(size(total)).append(" (").append(done * 100 / total).append("%)");
+            if (known) b.append(Tr.t(" de ")).append(size(total)).append(" (").append(done * 100 / total).append("%)");
             if (it.speed > 0) {
                 b.append(" · ").append(size((long) it.speed)).append("/s");
-                if (known) b.append(" · quedan ").append(time((long) ((total - done) / it.speed)));
+                if (known) b.append(Tr.t(" · quedan ")).append(time((long) ((total - done) / it.speed)));
             }
             text = b.toString();
         } else if (st == DownloadManager.STATUS_PAUSED) {
-            text = "En pausa: " + pauseReason(reason) + (known ? " · " + size(done) + " de " + size(total) : "");
+            text = Tr.t("En pausa: ") + pauseReason(reason) + (known ? " · " + size(done) + Tr.t(" de ") + size(total) : "");
         } else if (st == DownloadManager.STATUS_SUCCESSFUL) {
-            text = "Descargado · " + size(known ? total : done) + " · en la carpeta Descargas";
+            text = Tr.t("Descargado · ") + size(known ? total : done) + Tr.t(" · en la carpeta Descargas");
         } else if (st == DownloadManager.STATUS_FAILED) {
-            text = "Ha fallado: " + failReason(reason);
+            text = Tr.t("Ha fallado: ") + failReason(reason);
         } else {
-            text = "Cancelada";
+            text = Tr.t("Cancelada");
         }
         it.info.setText(text);
         it.info.setTextColor(st == DownloadManager.STATUS_FAILED ? 0xFFD93025 : cMuted);
 
         if (isActive(st)) {
-            setBtn(it.btnA, "Cancelar", new View.OnClickListener() { @Override public void onClick(View v) {
+            setBtn(it.btnA, Tr.t("Cancelar"), new View.OnClickListener() { @Override public void onClick(View v) {
                 dm.remove(it.id);
                 it.status = -1;
                 save();
@@ -422,11 +422,11 @@ final class Descargas {
             } });
             setBtn(it.btnB, null, null);
         } else if (st == DownloadManager.STATUS_SUCCESSFUL) {
-            setBtn(it.btnA, "Abrir", new View.OnClickListener() { @Override public void onClick(View v) { open(it); } });
+            setBtn(it.btnA, Tr.t("Abrir"), new View.OnClickListener() { @Override public void onClick(View v) { open(it); } });
             setBtn(it.btnB, null, null);
         } else {
-            setBtn(it.btnA, "Reintentar", new View.OnClickListener() { @Override public void onClick(View v) { retry(it); } });
-            setBtn(it.btnB, "Quitar", new View.OnClickListener() { @Override public void onClick(View v) {
+            setBtn(it.btnA, Tr.t("Reintentar"), new View.OnClickListener() { @Override public void onClick(View v) { retry(it); } });
+            setBtn(it.btnB, Tr.t("Quitar"), new View.OnClickListener() { @Override public void onClick(View v) {
                 dm.remove(it.id);
                 list.removeView(it.row);
                 items.remove(it);
@@ -467,9 +467,9 @@ final class Descargas {
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             a.startActivity(i);
         } catch (ActivityNotFoundException e) {
-            Toast.makeText(a, "No hay ninguna app para abrir este archivo. Está en la carpeta Descargas.", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, Tr.t("No hay ninguna app para abrir este archivo. Está en la carpeta Descargas."), Toast.LENGTH_LONG).show();
         } catch (Exception e) {
-            Toast.makeText(a, "No se encuentra el archivo. Mira en la carpeta Descargas.", Toast.LENGTH_LONG).show();
+            Toast.makeText(a, Tr.t("No se encuentra el archivo. Mira en la carpeta Descargas."), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -498,12 +498,12 @@ final class Descargas {
         float frac = allKnown && total > 0 ? (float) done / total : 0;
         graphActive = true;
         graph.add(speed, frac);
-        sumPct.setText(allKnown && total > 0 ? (int) (frac * 100) + " % completado" : size(done) + " descargados");
-        sumFile.setText("Descargando: " + current);
+        sumPct.setText(allKnown && total > 0 ? (int) (frac * 100) + Tr.t(" % completado") : size(done) + Tr.t(" descargados"));
+        sumFile.setText(Tr.t("Descargando: ") + current);
         StringBuilder b = new StringBuilder();
-        b.append("Velocidad: ").append(speed > 0 ? size((long) speed) + "/s" : "—");
-        if (allKnown && speed > 0 && left > 0) b.append("   ·   Quedan ").append(time((long) (left / speed)));
-        b.append("\n").append(count == 1 ? "1 elemento restante" : count + " elementos restantes");
+        b.append(Tr.t("Velocidad: ")).append(speed > 0 ? size((long) speed) + "/s" : "—");
+        if (allKnown && speed > 0 && left > 0) b.append(Tr.t("   ·   Quedan ")).append(time((long) (left / speed)));
+        b.append("\n").append(count == 1 ? Tr.t("1 elemento restante") : count + Tr.t(" elementos restantes"));
         if (allKnown && left > 0) b.append(" (").append(size(left)).append(")");
         sumStats.setText(b.toString());
         if (!minimized) summary.setVisibility(View.VISIBLE);
@@ -514,8 +514,8 @@ final class Descargas {
         int act = 0;
         for (Item it : items) if (isActive(it.status)) act++;
         panel.setVisibility(items.isEmpty() ? View.GONE : View.VISIBLE);
-        if (act > 0) header.setText(act == 1 ? "Descargando 1 archivo" : "Descargando " + act + " archivos");
-        else header.setText(items.size() == 1 ? "Descargas · 1 terminada" : "Descargas · " + items.size() + " terminadas");
+        if (act > 0) header.setText(act == 1 ? Tr.t("Descargando 1 archivo") : Tr.t("Descargando ") + act + Tr.t(" archivos"));
+        else header.setText(items.size() == 1 ? Tr.t("Descargas · 1 terminada") : Tr.t("Descargas · ") + items.size() + Tr.t(" terminadas"));
         // Que la lista no tape mas de media pantalla
         int max = a.getResources().getDisplayMetrics().heightPixels * 45 / 100;
         ViewGroup.LayoutParams lp = scroll.getLayoutParams();
@@ -542,23 +542,23 @@ final class Descargas {
 
     private static String pauseReason(int r) {
         switch (r) {
-            case DownloadManager.PAUSED_WAITING_FOR_NETWORK: return "esperando conexión";
-            case DownloadManager.PAUSED_QUEUED_FOR_WIFI: return "esperando wifi";
+            case DownloadManager.PAUSED_WAITING_FOR_NETWORK: return Tr.t("esperando conexión");
+            case DownloadManager.PAUSED_QUEUED_FOR_WIFI: return Tr.t("esperando wifi");
             case DownloadManager.PAUSED_WAITING_TO_RETRY: return "reintentando";
-            default: return "esperando";
+            default: return Tr.t("esperando");
         }
     }
 
     private static String failReason(int r) {
         switch (r) {
-            case DownloadManager.ERROR_INSUFFICIENT_SPACE: return "no queda espacio en el móvil";
-            case DownloadManager.ERROR_CANNOT_RESUME: return "se cortó y no se puede seguir; toca Reintentar";
-            case DownloadManager.ERROR_HTTP_DATA_ERROR: return "se cortó la conexión; toca Reintentar";
-            case DownloadManager.ERROR_FILE_ALREADY_EXISTS: return "ya existe un archivo con ese nombre";
-            case DownloadManager.ERROR_DEVICE_NOT_FOUND: return "no se encuentra la memoria";
-            case 401: case 403: return "sin permiso (vuelve a entrar en DrivePanel)";
-            case 404: return "el archivo ya no está en el servidor";
-            default: return r >= 400 && r < 600 ? "el servidor respondió con error " + r : "error " + r;
+            case DownloadManager.ERROR_INSUFFICIENT_SPACE: return Tr.t("no queda espacio en el móvil");
+            case DownloadManager.ERROR_CANNOT_RESUME: return Tr.t("se cortó y no se puede seguir; toca Reintentar");
+            case DownloadManager.ERROR_HTTP_DATA_ERROR: return Tr.t("se cortó la conexión; toca Reintentar");
+            case DownloadManager.ERROR_FILE_ALREADY_EXISTS: return Tr.t("ya existe un archivo con ese nombre");
+            case DownloadManager.ERROR_DEVICE_NOT_FOUND: return Tr.t("no se encuentra la memoria");
+            case 401: case 403: return Tr.t("sin permiso (vuelve a entrar en DrivePanel)");
+            case 404: return Tr.t("el archivo ya no está en el servidor");
+            default: return r >= 400 && r < 600 ? Tr.t("el servidor respondió con error ") + r : "error " + r;
         }
     }
 }

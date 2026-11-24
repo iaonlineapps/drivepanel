@@ -12,6 +12,7 @@ public class AccionCopia extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context c, Intent i) {
+        Tr.init(c);
         if (PAUSE.equals(i.getAction())) CopiaFotos.pause(c);
         else if (CANCEL.equals(i.getAction())) CopiaFotos.cancel(c);
     }
