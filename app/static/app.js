@@ -71,17 +71,17 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-i]:empty').
 
 /* ---------- utilidades ---------- */
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function fmtSize(b) { if (b == null) return '—'; const u = ['B','KB','MB','GB','TB']; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? b.toFixed(b < 10 ? 1 : 0) : b) .toString().replace('.', ',') + ' ' + u[i]; }
-const fmtDate = t => new Date(t * 1000).toLocaleString('es-ES', {day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
+function fmtSize(b) { if (b == null) return '—'; const u = ['B','KB','MB','GB','TB']; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return dec(i ? b.toFixed(b < 10 ? 1 : 0) : b) + ' ' + u[i]; }
+const fmtDate = t => new Date(t * 1000).toLocaleString(LOCALE, {day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
 function toast(msg, ms = 3000) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), ms); }
 const enc = encodeURIComponent;
 
 async function api(url, opts = {}) {
   if (opts.json !== undefined) { opts.body = JSON.stringify(opts.json); opts.headers = {'Content-Type':'application/json'}; opts.method = opts.method || 'POST'; }
   const r = await fetch(url, opts);
-  if (r.status === 401 && !url.includes('/api/login')) { showAuth(); throw new Error('Sesión caducada'); }
+  if (r.status === 401 && !url.includes('/api/login')) { showAuth(); throw new Error(t('Sesión caducada')); }
   let data = null; try { data = await r.json(); } catch (e) {}
-  if (!r.ok) throw new Error((data && data.detail && (typeof data.detail === 'string' ? data.detail : 'Datos no válidos')) || ('Error ' + r.status));
+  if (!r.ok) throw new Error((data && data.detail && (typeof data.detail === 'string' ? data.detail : t('Datos no válidos'))) || ('Error ' + r.status));
   return data;
 }
 const shareQ = () => S.share ? `&share=${S.share}` : '';
@@ -98,22 +98,25 @@ let registering = false;
 function showAuth() { $('#app').classList.add('hidden'); $('#auth').classList.remove('hidden'); }
 $('#authSwitch').onclick = e => {
   e.preventDefault(); registering = !registering;
-  $('#authTitle').textContent = registering ? 'Crear cuenta' : 'Iniciar sesión';
-  $('#authBtn').textContent = registering ? 'Registrarme' : 'Entrar';
-  $('#authSwitch').textContent = registering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate';
+  $('#authTitle').textContent = registering ? t('Crear cuenta') : t('Iniciar sesión');
+  $('#authBtn').textContent = registering ? t('Registrarme') : t('Entrar');
+  $('#authSwitch').textContent = registering ? t('¿Ya tienes cuenta? Inicia sesión') : t('¿No tienes cuenta? Regístrate');
   $('#authPass2').classList.toggle('hidden', !registering);
   $('#authMsg').textContent = '';
 };
+// idioma en la pantalla de acceso (antes de entrar todavia no hay cuenta donde guardarlo)
+$('#authLang').innerHTML = Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === LANG ? 'selected' : ''}>${v}</option>`).join('');
+$('#authLang').onchange = e => { setLang(e.target.value); try { localStorage.setItem('dp-lang-chosen', '1'); } catch (er) {} location.reload(); };
 $('#authForm').onsubmit = async e => {
   e.preventDefault();
   const m = $('#authMsg'); m.className = 'auth-msg'; m.textContent = '';
   const username = $('#authUser').value.trim(), password = $('#authPass').value;
   try {
     if (registering) {
-      if (password !== $('#authPass2').value) throw new Error('Las contraseñas no coinciden');
+      if (password !== $('#authPass2').value) throw new Error(t('Las contraseñas no coinciden'));
       const r = await api('/api/register', {json: {username, password}});
       m.className = 'auth-msg ok'; m.textContent = r.msg;
-      if (r.msg.includes('Ya puedes')) { $('#authSwitch').click(); m.className = 'auth-msg ok'; m.textContent = r.msg; }
+      if (r.admin) { $('#authSwitch').click(); m.className = 'auth-msg ok'; m.textContent = r.msg; }
       return;
     }
     await api('/api/login', {json: {username, password}});
@@ -124,6 +127,11 @@ $('#authForm').onsubmit = async e => {
 
 async function start() {
   try { S.me = await api('/api/me'); } catch (e) { showAuth(); return; }
+  // el idioma guardado en la cuenta manda (asi es el mismo en el PC, el movil y la app)
+  // (si lo acaba de elegir en la pantalla de acceso, se guarda ese en la cuenta)
+  let chosen = null; try { chosen = localStorage.getItem('dp-lang-chosen'); localStorage.removeItem('dp-lang-chosen'); } catch (e) {}
+  if (chosen && S.me.lang !== LANG) { S.me.lang = LANG; api('/api/me/lang', {json: {lang: LANG}}).catch(() => {}); }
+  else if (S.me.lang && LANGS[S.me.lang] && S.me.lang !== LANG) { setLang(S.me.lang); location.reload(); return; }
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#userName').textContent = S.me.username; $('#menuName').textContent = S.me.username;
   paintAvatars(); paintVersion(); applyAccent(S.me.accent);
@@ -135,8 +143,8 @@ async function start() {
 // Versión del servidor y, si se abre desde la app de Android, también la de la app
 function paintVersion() {
   const app = (navigator.userAgent.match(/DrivePanelAndroid\/([\d.]+)/) || [])[1];
-  const t = `DrivePanel ${S.me.version || '?'}` + (app ? ` · App Android ${app}` : '');
-  $('#sideVersion').textContent = t; $('#menuVersion').textContent = t.replace(' · ', '\n');
+  const txt = `DrivePanel ${S.me.version || '?'}` + (app ? ` · ${t('App Android')} ${app}` : '');
+  $('#sideVersion').textContent = txt; $('#menuVersion').textContent = txt.replace(' · ', '\n');
 }
 const AV_COLORS = ['#1a73e8','#e8710a','#188038','#a142f4','#d93025','#12b5cb','#e52592','#9334e6'];
 function avatarHtml(name, ver, cls = '') {
@@ -151,7 +159,7 @@ function paintAvatars() {
 }
 $('#avatarInput').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  try { const r = await api('/api/avatar', {method: 'PUT', body: f}); S.me.avatar = r.avatar; paintAvatars(); toast('Foto de perfil actualizada'); if (S.view === 'users') renderUsers(); }
+  try { const r = await api('/api/avatar', {method: 'PUT', body: f}); S.me.avatar = r.avatar; paintAvatars(); toast(t('Foto de perfil actualizada')); if (S.view === 'users') renderUsers(); }
   catch (err) { toast(err.message); }
 };
 function updateBadge(n) { const b = $('#pendingBadge'); b.textContent = n; b.classList.toggle('hidden', !n); }
@@ -211,12 +219,12 @@ async function load() {
 /* ---------- pintar ---------- */
 function crumbs() {
   const el = $('#crumbs');
-  const label = {drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad', settings:'Ajustes'}[S.view];
-  if (S.q) { el.innerHTML = `<button>Resultados de «${esc(S.q)}»</button>`; return; }
+  const label = t({drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad', settings:'Ajustes'}[S.view]);
+  if (S.q) { el.innerHTML = `<button>${t('Resultados de «{q}»', {q: esc(S.q)})}</button>`; return; }
   let html = `<button data-p="" data-root="1">${label}</button>`;
   if (S.view === 'shared' && S.share) {
     const sh = (S.sharesData?.withme || []).find(x => x.share_id === S.share);
-    html += `<span class="sep">›</span><button data-p="">${esc(sh ? sh.name + ' (' + sh.owner + ')' : 'Compartido')}</button>`;
+    html += `<span class="sep">›</span><button data-p="">${esc(sh ? sh.name + ' (' + sh.owner + ')' : t('Compartido'))}</button>`;
   }
   if (S.view === 'photos' && S.phAlbum != null && !S.q) html += `<span class="sep">›</span><button data-p="${esc(S.phAlbum || '~')}">${esc(albumName(S.phAlbum))}</button>`;
   let acc = '';
@@ -232,23 +240,23 @@ function crumbs() {
 }
 
 function emptyMsg() {
-  if (S.q) return 'No se ha encontrado nada';
-  return {drive:'Esta carpeta está vacía. Arrastra archivos aquí o usa «Nuevo».', shared:'Nadie ha compartido nada contigo todavía.',
-    recent:'Aún no hay archivos.', photos:'No hay fotos ni vídeos en las carpetas elegidas. Pulsa «Elegir carpetas» para cambiarlas.', trash:'La papelera está vacía.'}[S.view] || 'Vacío';
+  if (S.q) return t('No se ha encontrado nada');
+  return t({drive:'Esta carpeta está vacía. Arrastra archivos aquí o usa «Nuevo».', shared:'Nadie ha compartido nada contigo todavía.',
+    recent:'Aún no hay archivos.', photos:'No hay fotos ni vídeos en las carpetas elegidas. Pulsa «Elegir carpetas» para cambiarlas.', trash:'La papelera está vacía.'}[S.view] || 'Vacío');
 }
 
 function render() {
   crumbs();
   $('#emptyTrash').classList.toggle('hidden', !(S.view === 'trash' && S.items.length));
   $('#gridBtn').classList.toggle('on', S.mode === 'grid'); $('#listBtn').classList.toggle('on', S.mode === 'list');
-  $('#search').placeholder = 'Buscar en Mi unidad';
+  $('#search').placeholder = t('Buscar en Mi unidad');
   const c = $('#content');
   let html = '';
   if (S.view === 'shared' && !S.share && !S.q) html += myLinksHtml();
   const phv = S.view === 'photos' && !S.q;
   if (phv) html += photosBar();
   if (!S.items.length) { c.innerHTML = html + `<div class="empty">${ic(S.view === 'trash' ? 'trash' : S.view === 'photos' ? 'photo' : 'drive')}${emptyMsg()}</div>`; bindShareRows(c); phv && bindPhotosBar(c); updateSel(); return; }
-  if (phv) html += photosHtml() + (S.items.length < (S.phMeta?.total || 0) ? '<div id="phMore" class="ph-more">Cargando más…</div>' : '');
+  if (phv) html += photosHtml() + (S.items.length < (S.phMeta?.total || 0) ? `<div id="phMore" class="ph-more">${t('Cargando más…')}</div>` : '');
   else if (S.mode === 'list') html += listHtml();
   else html += gridHtml();
   c.innerHTML = html;
@@ -268,9 +276,9 @@ function bindShareRows(c) {
 function myLinksHtml() {
   const mine = S.sharesData?.mine || [];
   if (!mine.length) return '';
-  return `<div class="sec-title">Lo que he compartido</div>` + mine.map(s => `<div class="share-row">${ic(s.kind, 'ic-' + s.kind)}<span>${esc(s.path)} · ${s.target ? 'con ' + esc(s.target) : 'enlace público' + (s.expires ? ' · caduca el ' + esc(fmtDate(s.expires)) : '')}</span>
-    ${s.target ? '' : `<button class="btn small" data-copy="${esc(location.origin + '/s/' + s.token)}">Copiar enlace</button><button class="btn small" data-send="${s.share_id}">${ic('send')} Enviar</button>`}
-    <button class="btn small danger" data-unshare="${s.share_id}">Dejar de compartir</button></div>`).join('') + `<div class="sec-title">Compartido conmigo</div>`;
+  return `<div class="sec-title">${t('Lo que he compartido')}</div>` + mine.map(s => `<div class="share-row">${ic(s.kind, 'ic-' + s.kind)}<span>${esc(s.path)} · ${s.target ? t('con {user}', {user: esc(s.target)}) : t('enlace público') + (s.expires ? ' · ' + t('caduca el {date}', {date: esc(fmtDate(s.expires))}) : '')}</span>
+    ${s.target ? '' : `<button class="btn small" data-copy="${esc(location.origin + '/s/' + s.token)}">${t('Copiar enlace')}</button><button class="btn small" data-send="${s.share_id}">${ic('send')} ${t('Enviar')}</button>`}
+    <button class="btn small danger" data-unshare="${s.share_id}">${t('Dejar de compartir')}</button></div>`).join('') + `<div class="sec-title">${t('Compartido conmigo')}</div>`;
 }
 
 function thumbHtml(it) {
@@ -279,24 +287,24 @@ function thumbHtml(it) {
   return ic(it.kind, 'big-ic ic-' + it.kind);
 }
 function sub(it) {
-  if (S.view === 'trash') return 'Eliminado ' + fmtDate(it.mtime);
-  if (it.share_id) return 'De ' + esc(it.owner);
+  if (S.view === 'trash') return t('Eliminado {date}', {date: fmtDate(it.mtime)});
+  if (it.share_id) return t('De {user}', {user: esc(it.owner)});
   return fmtDate(it.mtime);
 }
 function gridHtml() {
   const folders = S.items.filter(i => i.dir), files = S.items.filter(i => !i.dir);
   let h = '';
-  if (folders.length) h += `<div class="sec-title">Carpetas</div><div class="folders">` + folders.map(it =>
+  if (folders.length) h += `<div class="sec-title">${t('Carpetas')}</div><div class="folders">` + folders.map(it =>
     `<div class="item" data-k="${esc(keyOf(it))}" draggable="${S.view === 'drive'}"><div class="folder-card" title="${esc(it.name)}">${ic('folder', 'ic-folder')}<span class="ell">${esc(it.name)}</span><button class="icon-btn more">${svg('more')}</button></div></div>`).join('') + `</div>`;
-  if (files.length) h += `<div class="sec-title">Archivos</div><div class="grid">` + files.map(it =>
+  if (files.length) h += `<div class="sec-title">${t('Archivos')}</div><div class="grid">` + files.map(it =>
     `<div class="item file-card" data-k="${esc(keyOf(it))}" draggable="${S.view === 'drive'}" title="${esc(it.name)}\n${fmtSize(it.size)} · ${sub(it)}">
       <div class="thumb">${thumbHtml(it)}${it.kind === 'video' ? '' : ''}</div>
       <div class="fname">${ic(it.kind, 'ic-' + it.kind)}<span class="ell">${esc(it.name)}</span><button class="icon-btn more">${svg('more')}</button></div></div>`).join('') + `</div>`;
   return h;
 }
 function listHtml() {
-  const col = S.view === 'trash' ? 'Eliminado' : S.view === 'shared' && !S.share ? 'Propietario' : 'Modificado';
-  return `<div class="tablewrap"><table class="list"><thead><tr><th>Nombre</th><th class="c-m hide-sm">${col}</th><th class="c-m">Tamaño</th><th></th></tr></thead><tbody>` +
+  const col = t(S.view === 'trash' ? 'Eliminado' : S.view === 'shared' && !S.share ? 'Propietario' : 'Modificado');
+  return `<div class="tablewrap"><table class="list"><thead><tr><th>${t('Nombre')}</th><th class="c-m hide-sm">${col}</th><th class="c-m">${t('Tamaño')}</th><th></th></tr></thead><tbody>` +
     S.items.map(it => `<tr class="item row" data-k="${esc(keyOf(it))}" draggable="${S.view === 'drive'}">
       <td class="nc"><div class="n">${ic(it.dir ? 'folder' : it.kind, 'ic-' + (it.dir ? 'folder' : it.kind))}<span class="ell" title="${esc(it.path || it.name)}">${esc(it.name)}</span></div></td>
       <td class="c-m hide-sm">${it.share_id ? esc(it.owner) : fmtDate(it.mtime)}</td><td class="c-m">${it.dir ? '—' : fmtSize(it.size)}</td>
@@ -306,16 +314,16 @@ function listHtml() {
 const PH_PAGE = 200;
 S.phMode = (() => { try { return localStorage.getItem('dp-phmode') === 'albums' ? 'albums' : 'date'; } catch (e) { return 'date'; } })();
 const photosUrl = off => `/api/photos?offset=${off}&limit=${PH_PAGE}` + (S.phAlbum != null ? '&album=' + enc(S.phAlbum) : '');
-const albumName = a => a ? a.split('/').pop() : 'Sueltas en Mi unidad';
-const fmtCount = n => `${fmtNum(n)} ${n === 1 ? 'foto o vídeo' : 'fotos y vídeos'}`;
-function dirsText(m) { return !m ? '' : m.dirs.length ? 'de ' + m.dirs.map(esc).join(', ') : 'de todas tus carpetas'; }
+const albumName = a => a ? a.split('/').pop() : t('Sueltas en Mi unidad');
+const fmtCount = n => `${fmtNum(n)} ${n === 1 ? t('foto o vídeo') : t('fotos y vídeos')}`;
+function dirsText(m) { return !m ? '' : m.dirs.length ? t('de {dirs}', {dirs: m.dirs.map(esc).join(', ')}) : t('de todas tus carpetas'); }
 function photosBar() {
   const m = S.phMeta;
-  if (S.phAlbum != null) return `<div class="ph-bar"><button class="btn small" id="phBack">${ic('left')} Álbumes</button>
+  if (S.phAlbum != null) return `<div class="ph-bar"><button class="btn small" id="phBack">${ic('left')} ${t('Álbumes')}</button>
     <span class="ph-info"><b>${esc(albumName(S.phAlbum))}</b> · ${fmtCount(m?.total || 0)}</span></div>`;
-  return `<div class="ph-bar"><div class="seg" id="phMode"><button data-m="date" class="${S.phMode === 'date' ? 'on' : ''}">Por fecha</button><button data-m="albums" class="${S.phMode === 'albums' ? 'on' : ''}">Por álbumes</button></div>
+  return `<div class="ph-bar"><div class="seg" id="phMode"><button data-m="date" class="${S.phMode === 'date' ? 'on' : ''}">${t('Por fecha')}</button><button data-m="albums" class="${S.phMode === 'albums' ? 'on' : ''}">${t('Por álbumes')}</button></div>
     <span class="ph-info">${m ? fmtCount(m.total) + ' ' + dirsText(m) : ''}</span>
-    <button class="btn small" id="phDirs">${ic('folder')} Elegir carpetas</button></div>`;
+    <button class="btn small" id="phDirs">${ic('folder')} ${t('Elegir carpetas')}</button></div>`;
 }
 let phObs, phLoading = false;
 function bindPhotosBar(c) {
@@ -347,9 +355,9 @@ async function renderAlbums() {
   S.items = []; S.phMeta = r; crumbs(); $('#emptyTrash').classList.add('hidden');
   let h = photosBar();
   if (!r.albums.length) h += `<div class="empty">${ic('photo')}${emptyMsg()}</div>`;
-  else h += `<div class="albums">` + r.albums.map(a => `<button class="album" data-al="${esc(a.path || '~')}" title="${esc(a.path || 'Mi unidad')}">
+  else h += `<div class="albums">` + r.albums.map(a => `<button class="album" data-al="${esc(a.path || '~')}" title="${esc(a.path || t('Mi unidad'))}">
       <span class="cov">${a.cover ? `<img data-src="${thumbUrl(a.cover)}" alt="">` : ic('photo', 'big-ic ic-image')}</span>
-      <b class="ell">${esc(a.name)}</b><small class="ell">${fmtCount(a.count)}${a.path.includes('/') ? ' · ' + esc(a.path.split('/').slice(0, -1).join('/')) : ''}</small></button>`).join('') + `</div>`;
+      <b class="ell">${esc(a.path ? a.name : t(a.name))}</b><small class="ell">${fmtCount(a.count)}${a.path.includes('/') ? ' · ' + esc(a.path.split('/').slice(0, -1).join('/')) : ''}</small></button>`).join('') + `</div>`;
   c.innerHTML = h;
   c.querySelectorAll('[data-al]').forEach(b => b.onclick = () => go('photos', b.dataset.al));
   observeThumbs(c); bindPhotosBar(c); updateSel();
@@ -357,10 +365,10 @@ async function renderAlbums() {
 async function photoDirsDialog() {
   let r; try { r = await api('/api/photos/folders'); } catch (e) { return toast(e.message); }
   const all = !r.dirs.length;
-  const p = dialog(`<h3>Carpetas de Fotos</h3><p>Elige de qué carpetas salen las fotos y vídeos en «Fotos». Las demás no se tocan: siguen en Mi unidad, solo que no salen aquí.</p>
-    <label class="pick-row all"><input type="checkbox" id="phAll" ${all ? 'checked' : ''}><span><b>Todas las carpetas</b><small>${fmtCount(r.total)}</small></span></label>
-    <div class="pick-list" id="phList">${r.folders.length ? r.folders.map(f => `<label class="pick-row"><input type="checkbox" value="${esc(f.name)}" ${r.dirs.includes(f.name) ? 'checked' : ''}><span>${ic('folder', 'ic-folder')}<b class="ell">${esc(f.name)}</b><small>${fmtNum(f.count)}</small></span></label>`).join('') : '<div class="sub" style="padding:12px">Aún no tienes carpetas con fotos.</div>'}</div>
-    <div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="phSave">Guardar</button></div>`);
+  const p = dialog(`<h3>${t('Carpetas de Fotos')}</h3><p>${t('Elige de qué carpetas salen las fotos y vídeos en «Fotos». Las demás no se tocan: siguen en Mi unidad, solo que no salen aquí.')}</p>
+    <label class="pick-row all"><input type="checkbox" id="phAll" ${all ? 'checked' : ''}><span><b>${t('Todas las carpetas')}</b><small>${fmtCount(r.total)}</small></span></label>
+    <div class="pick-list" id="phList">${r.folders.length ? r.folders.map(f => `<label class="pick-row"><input type="checkbox" value="${esc(f.name)}" ${r.dirs.includes(f.name) ? 'checked' : ''}><span>${ic('folder', 'ic-folder')}<b class="ell">${esc(f.name)}</b><small>${fmtNum(f.count)}</small></span></label>`).join('') : `<div class="sub" style="padding:12px">${t('Aún no tienes carpetas con fotos.')}</div>`}</div>
+    <div class="actions"><button class="btn" data-close>${t('Cancelar')}</button><button class="btn primary" id="phSave">${t('Guardar')}</button></div>`);
   const box = $('#dialogBox'), allCb = box.querySelector('#phAll'), cbs = [...box.querySelectorAll('#phList input')];
   const sync = () => box.querySelector('#phList').classList.toggle('off', allCb.checked);
   allCb.onchange = () => { if (!allCb.checked && !cbs.some(x => x.checked) && cbs[0]) cbs[0].checked = true; sync(); };
@@ -368,7 +376,7 @@ async function photoDirsDialog() {
   sync();
   box.querySelector('#phSave').onclick = async () => {
     const dirs = allCb.checked ? [] : cbs.filter(x => x.checked).map(x => x.value);
-    try { await api('/api/photos/folders', {json: {dirs}}); closeDialog(true); toast(dirs.length ? 'Fotos: ' + dirs.join(', ') : 'Fotos: todas las carpetas'); if (S.view === 'photos') load(); if (S.view === 'settings') renderSettings(); }
+    try { await api('/api/photos/folders', {json: {dirs}}); closeDialog(true); toast(t('Fotos') + ': ' + (dirs.length ? dirs.join(', ') : t('todas las carpetas'))); if (S.view === 'photos') load(); if (S.view === 'settings') renderSettings(); }
     catch (e) { toast(e.message); }
   };
   return p;
@@ -377,7 +385,7 @@ async function photoDirsDialog() {
 function photosHtml() {
   let h = '', month = '';
   S.items.forEach(it => {
-    const m = new Date(it.mtime * 1000).toLocaleDateString('es-ES', {month:'long', year:'numeric'});
+    const m = new Date(it.mtime * 1000).toLocaleDateString(LOCALE, {month:'long', year:'numeric'});
     if (m !== month) { if (month) h += '</div>'; month = m; h += `<div class="photo-month">${m[0].toUpperCase() + m.slice(1)}</div><div class="photos">`; }
     h += `<div class="item ph" data-k="${esc(keyOf(it))}" title="${esc(it.path)}">${it.kind === 'image' && !/\.(heic|heif)$/i.test(it.name) ? `<img data-src="${thumbUrl(it.path)}" alt="">` : ic(it.kind, 'big-ic ic-' + it.kind)}${it.kind === 'video' ? ic('play', 'play') : ''}</div>`;
   });
@@ -428,7 +436,7 @@ function dropZone(el, destFn) {
     if (!d) return; e.preventDefault(); e.stopPropagation();
     const paths = JSON.parse(d).filter(p => p !== destFn());
     if (!paths.length) return;
-    try { await api('/api/move', {json: {paths, dest: destFn()}}); toast('Movido'); load(); } catch (err) { toast(err.message); }
+    try { await api('/api/move', {json: {paths, dest: destFn()}}); toast(t('Movido')); load(); } catch (err) { toast(err.message); }
   });
 }
 function updateSel() {
@@ -436,19 +444,19 @@ function updateSel() {
   const n = S.sel.size, bar = $('#selBar');
   bar.classList.toggle('hidden', !n); $('#crumbs').classList.toggle('hidden', !!n);
   if (!n) return;
-  $('#selCount').textContent = n === 1 ? '1 seleccionado' : n + ' seleccionados';
+  $('#selCount').textContent = n === 1 ? t('1 seleccionado') : t('{n} seleccionados', {n});
   const trash = S.view === 'trash', own = (S.view === 'drive' || S.view === 'recent' || S.view === 'photos' || (S.q && S.view !== 'trash')) && !S.share;
   const show = (a, v) => bar.querySelector(`[data-sel="${a}"]`).classList.toggle('hidden', !v);
   show('download', !trash); show('share', own && n === 1); show('move', own); show('rename', own && n === 1);
   show('delete', own || (S.view === 'shared' && !S.share)); show('restore', trash); show('purge', trash);
-  bar.querySelector('[data-sel="delete"]').title = S.view === 'shared' ? 'Quitar de compartidos' : 'Eliminar';
+  bar.querySelector('[data-sel="delete"]').title = t(S.view === 'shared' ? 'Quitar de compartidos' : 'Eliminar');
 }
 const selItems = () => [...S.sel].map(itemByKey).filter(Boolean);
 $('#content').addEventListener('click', e => { if (e.target === $('#content') || e.target.classList.contains('empty')) { S.sel.clear(); updateSel(); } });
 
 /* ---------- acciones ---------- */
 function openItem(it) {
-  if (S.view === 'trash') { S.sel.clear(); S.sel.add(keyOf(it)); updateSel(); return toast('Restáuralo para poder abrirlo'); }
+  if (S.view === 'trash') { S.sel.clear(); S.sel.add(keyOf(it)); updateSel(); return toast(t('Restáuralo para poder abrirlo')); }
   if (it.share_id) return go('shared', '', it.share_id);
   if (it.dir) return S.view === 'shared' ? go('shared', it.path, S.share) : go('drive', it.path);
   openViewer(it);
@@ -470,11 +478,11 @@ function appIntent(url, name) {
     encodeURIComponent('https://github.com/pctecnikk/drivepanel/releases') + ';end';
 }
 function appOrHere(url, name) {
-  dialog(`<h3>Descargar ${esc(name)}</h3><p>¿Dónde quieres descargarlo?</p><div class="choice-list" style="display:flex;flex-direction:column;gap:10px">
-    <a class="btn primary" href="${esc(appIntent(url, name))}" data-close style="justify-content:center;text-decoration:none">Abrir en la app DrivePanel</a>
-    <a class="btn" href="${esc(url)}" data-close style="justify-content:center;text-decoration:none">Descargar aquí (navegador)</a></div>
-    <p style="font-size:13px;margin-top:12px">Si no tienes la app, el primer botón te lleva a descargarla.</p>
-    <div class="actions"><button class="btn" data-close>Cancelar</button></div>`);
+  dialog(`<h3>${t('Descargar {name}', {name: esc(name)})}</h3><p>${t('¿Dónde quieres descargarlo?')}</p><div class="choice-list" style="display:flex;flex-direction:column;gap:10px">
+    <a class="btn primary" href="${esc(appIntent(url, name))}" data-close style="justify-content:center;text-decoration:none">${t('Abrir en la app DrivePanel')}</a>
+    <a class="btn" href="${esc(url)}" data-close style="justify-content:center;text-decoration:none">${t('Descargar aquí (navegador)')}</a></div>
+    <p style="font-size:13px;margin-top:12px">${t('Si no tienes la app, el primer botón te lleva a descargarla.')}</p>
+    <div class="actions"><button class="btn" data-close>${t('Cancelar')}</button></div>`);
 }
 const actions = {
   open: it => openItem(it),
@@ -486,15 +494,15 @@ const actions = {
   delete: async () => {
     const items = selItems();
     if (S.view === 'shared') { for (const i of items) await api('/api/share/' + i.share_id, {method:'DELETE'}); return load(); }
-    try { await api('/api/delete', {json: {paths: items.map(i => i.path)}}); toast(items.length === 1 ? 'Movido a la papelera' : items.length + ' elementos movidos a la papelera'); load(); loadStats(); } catch (e) { toast(e.message); }
+    try { await api('/api/delete', {json: {paths: items.map(i => i.path)}}); toast(items.length === 1 ? t('Movido a la papelera') : t('{n} elementos movidos a la papelera', {n: items.length})); load(); loadStats(); } catch (e) { toast(e.message); }
   },
-  restore: async () => { await api('/api/trash/restore', {json: {ids: selItems().map(i => i.id)}}); toast('Restaurado'); load(); },
-  purge: async () => { if (await confirmDialog('Eliminar para siempre', 'Estos elementos se borrarán definitivamente. No se puede deshacer.', 'Eliminar')) { await api('/api/trash/delete', {json: {ids: selItems().map(i => i.id)}}); load(); loadStats(); } },
+  restore: async () => { await api('/api/trash/restore', {json: {ids: selItems().map(i => i.id)}}); toast(t('Restaurado')); load(); },
+  purge: async () => { if (await confirmDialog(t('Eliminar para siempre'), t('Estos elementos se borrarán definitivamente. No se puede deshacer.'), t('Eliminar'))) { await api('/api/trash/delete', {json: {ids: selItems().map(i => i.id)}}); load(); loadStats(); } },
   clear: () => { S.sel.clear(); updateSel(); },
   props: () => propsDialog(selItems()),
 };
 $('#selBar').addEventListener('click', e => { const b = e.target.closest('[data-sel]'); if (b) actions[b.dataset.sel](); });
-$('#emptyTrash').onclick = async () => { if (await confirmDialog('Vaciar papelera', 'Se borrará todo lo que hay en la papelera para siempre.', 'Vaciar')) { await api('/api/trash/empty', {method:'POST'}); load(); loadStats(); } };
+$('#emptyTrash').onclick = async () => { if (await confirmDialog(t('Vaciar papelera'), t('Se borrará todo lo que hay en la papelera para siempre.'), t('Vaciar'))) { await api('/api/trash/empty', {method:'POST'}); load(); loadStats(); } };
 
 function openCtx(anchor, it) {
   const m = $('#ctx'), trash = S.view === 'trash', own = !S.share && S.view !== 'shared' && !trash, multi = S.sel.size > 1;
@@ -508,7 +516,7 @@ function openCtx(anchor, it) {
   if (trash) opts.push(['restore', 'restore', 'Restaurar'], ['purge', 'forever', 'Eliminar para siempre']);
   if (own) opts.push(['-'], ['delete', 'trash', 'Mover a la papelera']);
   if (S.view === 'shared' && !S.share) opts.push(['delete', 'close', 'Quitar de compartidos']);
-  m.innerHTML = opts.map(o => o[0] === '-' ? '<hr>' : `<button data-a="${o[0]}" class="${o[0] === 'delete' || o[0] === 'purge' ? 'danger' : ''}">${ic(o[1])}${o[2]}</button>`).join('');
+  m.innerHTML = opts.map(o => o[0] === '-' ? '<hr>' : `<button data-a="${o[0]}" class="${o[0] === 'delete' || o[0] === 'purge' ? 'danger' : ''}">${ic(o[1])}${t(o[2])}</button>`).join('');
   m.classList.remove('hidden');
   let x, y;
   if (anchor.getBoundingClientRect) { const r = anchor.getBoundingClientRect(); x = r.left; y = r.bottom; } else { x = anchor.x; y = anchor.y; }
@@ -546,21 +554,21 @@ function dialog(html) { $('#dialogBox').innerHTML = html; $('#dialog').classList
 function closeDialog(v) { $('#dialog').classList.add('hidden'); dlgResolve?.(v); dlgResolve = null; }
 $('#dialog').addEventListener('mousedown', e => { if (e.target === $('#dialog')) closeDialog(); });
 $('#dialogBox').addEventListener('click', e => { const b = e.target.closest('[data-close]'); if (b) closeDialog(b.dataset.close === 'ok' ? true : undefined); });
-async function promptDialog(title, value = '', ok = 'Aceptar') {
-  const p = dialog(`<h3>${esc(title)}</h3><form id="pf"><input id="pv" value="${esc(value)}"><div class="actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn primary">${ok}</button></div></form>`);
+async function promptDialog(title, value = '', ok = t('Aceptar')) {
+  const p = dialog(`<h3>${esc(title)}</h3><form id="pf"><input id="pv" value="${esc(value)}"><div class="actions"><button type="button" class="btn" data-close>${t('Cancelar')}</button><button class="btn primary">${ok}</button></div></form>`);
   $('#pf').onsubmit = e => { e.preventDefault(); closeDialog($('#pv').value.trim()); };
   return p;
 }
-function confirmDialog(title, text, ok = 'Aceptar') {
-  return dialog(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" data-close="ok">${ok}</button></div>`);
+function confirmDialog(title, text, ok = t('Aceptar')) {
+  return dialog(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="actions"><button class="btn" data-close>${t('Cancelar')}</button><button class="btn primary" data-close="ok">${ok}</button></div>`);
 }
 async function mkdirDialog() {
-  const name = await promptDialog('Nueva carpeta', 'Carpeta sin título', 'Crear');
+  const name = await promptDialog(t('Nueva carpeta'), t('Carpeta sin título'), t('Crear'));
   if (!name) return;
   try { await api('/api/mkdir', {json: {path: S.view === 'drive' ? S.path : '', name}}); if (S.view !== 'drive') go('drive'); else load(); } catch (e) { toast(e.message); }
 }
 async function renameDialog(it) {
-  const name = await promptDialog('Cambiar nombre', it.name);
+  const name = await promptDialog(t('Cambiar nombre'), it.name);
   if (!name || name === it.name) return;
   try { await api('/api/rename', {json: {path: it.path, name}}); load(); } catch (e) { toast(e.message); }
 }
@@ -568,26 +576,26 @@ async function moveDialog(items) {
   let cur = '';
   const paint = async () => {
     const r = await api('/api/list?path=' + enc(cur));
-    const ups = cur ? `<button data-p="${esc(cur.split('/').slice(0, -1).join('/'))}">${ic('left')}Subir un nivel</button>` : '';
-    $('#picker').innerHTML = ups + r.items.filter(i => i.dir && !items.some(s => s.path === i.path)).map(i => `<button data-p="${esc(i.path)}">${ic('folder', 'ic-folder')}${esc(i.name)}</button>`).join('') || '<p style="padding:10px">Sin subcarpetas</p>';
-    $('#pickPath').textContent = 'Mi unidad' + (cur ? ' / ' + cur.split('/').join(' / ') : '');
+    const ups = cur ? `<button data-p="${esc(cur.split('/').slice(0, -1).join('/'))}">${ic('left')}${t('Subir un nivel')}</button>` : '';
+    $('#picker').innerHTML = ups + r.items.filter(i => i.dir && !items.some(s => s.path === i.path)).map(i => `<button data-p="${esc(i.path)}">${ic('folder', 'ic-folder')}${esc(i.name)}</button>`).join('') || `<p style="padding:10px">${t('Sin subcarpetas')}</p>`;
+    $('#pickPath').textContent = t('Mi unidad') + (cur ? ' / ' + cur.split('/').join(' / ') : '');
     $('#picker').querySelectorAll('[data-p]').forEach(b => b.onclick = () => { cur = b.dataset.p; paint(); });
   };
-  const p = dialog(`<h3>Mover ${items.length === 1 ? '«' + esc(items[0].name) + '»' : items.length + ' elementos'}</h3><p id="pickPath"></p><div id="picker" class="picker"></div>
-    <div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" data-close="ok">Mover aquí</button></div>`);
+  const p = dialog(`<h3>${t('Mover {what}', {what: items.length === 1 ? '«' + esc(items[0].name) + '»' : t('{n} elementos', {n: items.length})})}</h3><p id="pickPath"></p><div id="picker" class="picker"></div>
+    <div class="actions"><button class="btn" data-close>${t('Cancelar')}</button><button class="btn primary" data-close="ok">${t('Mover aquí')}</button></div>`);
   paint();
-  if (await p) { try { await api('/api/move', {json: {paths: items.map(i => i.path), dest: cur}}); toast('Movido'); load(); } catch (e) { toast(e.message); } }
+  if (await p) { try { await api('/api/move', {json: {paths: items.map(i => i.path), dest: cur}}); toast(t('Movido')); load(); } catch (e) { toast(e.message); } }
 }
 async function shareDialog(it) {
-  const p = dialog(`<h3>Compartir «${esc(it.name)}»</h3>
-    <label>Con otro usuario de DrivePanel (solo lectura)</label>
-    <form id="shU" style="display:flex;gap:8px"><input id="shUser" placeholder="Nombre de usuario"><button class="btn primary">Compartir</button></form>
-    <label>O con un enlace público (cualquiera con el enlace puede descargarlo${it.dir ? ' en .zip' : ''})</label>
+  const p = dialog(`<h3>${t('Compartir «{name}»', {name: esc(it.name)})}</h3>
+    <label>${t('Con otro usuario de DrivePanel (solo lectura)')}</label>
+    <form id="shU" style="display:flex;gap:8px"><input id="shUser" placeholder="${t('Nombre de usuario')}"><button class="btn primary">${t('Compartir')}</button></form>
+    <label>${t(it.dir ? 'O con un enlace público (cualquiera con el enlace puede descargarlo en .zip)' : 'O con un enlace público (cualquiera con el enlace puede descargarlo)')}</label>
     <div id="shLink" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="shDays" style="width:auto"><option value="">No caduca</option><option value="0.0417">Caduca en 1 hora</option><option value="1">Caduca en 1 día</option><option value="7" selected>Caduca en 7 días</option><option value="30">Caduca en 30 días</option></select>
-      <button class="btn" id="mkLink">${ic('link')} Crear enlace</button></div>
-    <div class="actions"><button class="btn" data-close>Cerrar</button></div>`);
-  $('#shU').onsubmit = async e => { e.preventDefault(); try { await api('/api/share', {json: {path: it.path, target: $('#shUser').value}}); toast('Compartido con ' + $('#shUser').value); closeDialog(); } catch (err) { toast(err.message); } };
+      <select id="shDays" style="width:auto"><option value="">${t('No caduca')}</option><option value="0.0417">${t('Caduca en 1 hora')}</option><option value="1">${t('Caduca en 1 día')}</option><option value="7" selected>${t('Caduca en 7 días')}</option><option value="30">${t('Caduca en 30 días')}</option></select>
+      <button class="btn" id="mkLink">${ic('link')} ${t('Crear enlace')}</button></div>
+    <div class="actions"><button class="btn" data-close>${t('Cerrar')}</button></div>`);
+  $('#shU').onsubmit = async e => { e.preventDefault(); try { await api('/api/share', {json: {path: it.path, target: $('#shUser').value}}); toast(t('Compartido con {user}', {user: $('#shUser').value})); closeDialog(); } catch (err) { toast(err.message); } };
   $('#mkLink').onclick = async () => {
     const days = +$('#shDays').value || null;
     let r; try { r = await api('/api/share', {json: {path: it.path, days}}); } catch (err) { return toast(err.message); }
@@ -602,18 +610,18 @@ async function shareDialog(it) {
    del propio movil, si el navegador lo tiene. */
 const LAN_HOST = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1|\[?f[cd]|[^.]+$|.*\.(local|lan|home|internal)$)/i;
 function sendText(name, url, expires) {
-  return `Te paso «${name}» desde DrivePanel: ${url}` + (expires ? ` (el enlace caduca el ${fmtDate(expires)})` : '');
+  return t('Te paso «{name}» desde DrivePanel: {url}', {name, url}) + (expires ? ' ' + t('(el enlace caduca el {date})', {date: fmtDate(expires)}) : '');
 }
 function sendBox(name, url, expires) {
   return `<div id="shLink"><div class="copy">${esc(url)}</div>
-    ${expires ? `<div class="muted">Caduca el ${esc(fmtDate(expires))}</div>` : ''}
+    ${expires ? `<div class="muted">${t('Caduca el {date}', {date: esc(fmtDate(expires))})}</div>` : ''}
     <div class="send-row">
-      <button class="btn small" id="cpL">${ic('link')} Copiar</button>
+      <button class="btn small" id="cpL">${ic('link')} ${t('Copiar')}</button>
       <button class="btn small send-wa" id="sWa">${ic('chat')} WhatsApp</button>
       <button class="btn small send-tg" id="sTg">${ic('send')} Telegram</button>
-      ${navigator.share ? `<button class="btn small" id="sMore">${ic('share')} Otras apps</button>` : ''}
+      ${navigator.share ? `<button class="btn small" id="sMore">${ic('share')} ${t('Otras apps')}</button>` : ''}
     </div>
-    ${LAN_HOST.test(location.hostname) ? `<p class="muted send-warn">Ojo: el enlace usa la dirección de tu casa (${esc(location.hostname)}). Solo funcionará a quien esté conectado a tu misma wifi. Para que funcione desde fuera, entra en DrivePanel con la dirección de internet de tu servidor y crea el enlace desde ahí.</p>` : ''}
+    ${LAN_HOST.test(location.hostname) ? `<p class="muted send-warn">${t('Ojo: el enlace usa la dirección de tu casa ({host}). Solo funcionará a quien esté conectado a tu misma wifi. Para que funcione desde fuera, entra en DrivePanel con la dirección de internet de tu servidor y crea el enlace desde ahí.', {host: esc(location.hostname)})}</p>` : ''}
   </div>`;
 }
 function bindSendBox(name, url, expires) {
@@ -625,31 +633,31 @@ function bindSendBox(name, url, expires) {
   const m = $('#sMore'); if (m) m.onclick = () => navigator.share({title: name, text, url}).catch(() => {});
 }
 function sendDialog(name, url, expires) {
-  dialog(`<h3>Enviar «${esc(name)}»</h3>${sendBox(name, url, expires)}<div class="actions"><button class="btn" data-close>Cerrar</button></div>`);
+  dialog(`<h3>${t('Enviar «{name}»', {name: esc(name)})}</h3>${sendBox(name, url, expires)}<div class="actions"><button class="btn" data-close>${t('Cerrar')}</button></div>`);
   bindSendBox(name, url, expires);
 }
 function copy(text) {
-  (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => toast('Copiado'), () => {
-    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast('Copiado'); } catch (e) {} t.remove();
+  (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => toast(t('Copiado')), () => {
+    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); toast(window.t('Copiado')); } catch (e) {} t.remove();
   });
 }
 function webdavDialog() {
   const url = location.origin + '/dav/';
-  dialog(`<h3>Conectar el móvil o el PC (WebDAV)</h3>
-    <p>Tu carpeta «Mi unidad» está disponible por WebDAV. Úsalo con FolderSync, PhotoSync, el explorador de archivos, etc.</p>
-    <label>Dirección del servidor</label><div class="copy">${esc(url)}</div>
-    <label>Usuario</label><div class="copy">${esc(S.me.username)}</div>
-    <label>Contraseña</label><div class="copy">La misma con la que entras aquí</div>
-    <p style="margin-top:12px"><b>FolderSync (Android):</b> Cuentas → + → WebDAV. Servidor: la dirección de arriba, sin HTTPS. Luego crea un «Folderpair» de tipo <i>Hacia la carpeta remota</i> desde DCIM/Camera a una carpeta, por ejemplo <code>/Móvil/Cámara</code>, y activa la sincronización programada o al detectar cambios.</p>
-    <div class="actions"><button class="btn" id="cpDav">Copiar dirección</button><button class="btn primary" data-close>Cerrar</button></div>`);
+  dialog(`<h3>${t('Conectar el móvil o el PC (WebDAV)')}</h3>
+    <p>${t('Tu carpeta «Mi unidad» está disponible por WebDAV. Úsalo con FolderSync, PhotoSync, el explorador de archivos, etc.')}</p>
+    <label>${t('Dirección del servidor')}</label><div class="copy">${esc(url)}</div>
+    <label>${t('Usuario')}</label><div class="copy">${esc(S.me.username)}</div>
+    <label>${t('Contraseña')}</label><div class="copy">${t('La misma con la que entras aquí')}</div>
+    <p style="margin-top:12px">${t('<b>FolderSync (Android):</b> Cuentas → + → WebDAV. Servidor: la dirección de arriba, sin HTTPS. Luego crea un «Folderpair» de tipo <i>Hacia la carpeta remota</i> desde DCIM/Camera a una carpeta, por ejemplo <code>/Móvil/Cámara</code>, y activa la sincronización programada o al detectar cambios.')}</p>
+    <div class="actions"><button class="btn" id="cpDav">${t('Copiar dirección')}</button><button class="btn primary" data-close>${t('Cerrar')}</button></div>`);
   $('#cpDav').onclick = () => copy(url);
 }
 async function passwordDialog() {
-  const p = dialog(`<h3>Cambiar contraseña</h3><form id="pwf"><label>Actual</label><input id="pw0" type="password" autocomplete="current-password"><label>Nueva</label><input id="pw1" type="password" autocomplete="new-password"><label>Repite la nueva</label><input id="pw2" type="password" autocomplete="new-password">
-    <div class="actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn primary">Guardar</button></div></form>`);
+  const p = dialog(`<h3>${t('Cambiar contraseña')}</h3><form id="pwf"><label>${t('Actual')}</label><input id="pw0" type="password" autocomplete="current-password"><label>${t('Nueva')}</label><input id="pw1" type="password" autocomplete="new-password"><label>${t('Repite la nueva')}</label><input id="pw2" type="password" autocomplete="new-password">
+    <div class="actions"><button type="button" class="btn" data-close>${t('Cancelar')}</button><button class="btn primary">${t('Guardar')}</button></div></form>`);
   $('#pwf').onsubmit = async e => {
-    e.preventDefault(); if ($('#pw1').value !== $('#pw2').value) return toast('Las contraseñas no coinciden');
-    try { await api('/api/password', {json: {old: $('#pw0').value, new: $('#pw1').value}}); toast('Contraseña cambiada'); closeDialog(); } catch (err) { toast(err.message); }
+    e.preventDefault(); if ($('#pw1').value !== $('#pw2').value) return toast(t('Las contraseñas no coinciden'));
+    try { await api('/api/password', {json: {old: $('#pw0').value, new: $('#pw1').value}}); toast(t('Contraseña cambiada')); closeDialog(); } catch (err) { toast(err.message); }
   };
   return p;
 }
@@ -666,8 +674,8 @@ async function showViewer() {
   if (it.kind === 'image') b.innerHTML = `<img src="${url}" alt="">`;
   else if (it.kind === 'video' || it.kind === 'audio') return showMedia(it, b, url);
   else if (it.kind === 'pdf') b.innerHTML = `<iframe src="${url}"></iframe>`;
-  else if (it.kind === 'text' && it.size < 2e6) { b.innerHTML = '<pre>Cargando…</pre>'; try { const t = await (await fetch(url)).text(); b.querySelector('pre').textContent = t; } catch (e) {} }
-  else b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>No hay vista previa para este archivo</p><a class="btn primary" href="${fileUrl(it.path, true)}">Descargar (${fmtSize(it.size)})</a></div>`;
+  else if (it.kind === 'text' && it.size < 2e6) { b.innerHTML = `<pre>${t('Cargando…')}</pre>`; try { const t = await (await fetch(url)).text(); b.querySelector('pre').textContent = t; } catch (e) {} }
+  else b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>${t('No hay vista previa para este archivo')}</p><a class="btn primary" href="${fileUrl(it.path, true)}">${t('Descargar ({size})', {size: fmtSize(it.size)})}</a></div>`;
   paintIcons(b);
   const nx = vList[vIdx + 1]; if (nx && nx.kind === 'image') new Image().src = fileUrl(nx.path);
 }
@@ -681,9 +689,9 @@ const posKey = it => 'dp-pos:' + (S.share || '') + ':' + it.path;
 function fmtDur(t) { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = String(t % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`; }
 function cantPlay(it, b, why) {
   const fmt = NO_PLAY[extOf(it.name)] || extOf(it.name).slice(1).toUpperCase();
-  b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p><b>Este ${it.kind === 'audio' ? 'audio' : 'vídeo'} no se puede ver en el navegador</b></p>
-    <p class="np-why">${why || `El formato ${esc(fmt)} no lo reproducen los navegadores.`} Descárgalo y ábrelo con un reproductor como VLC.</p>
-    <a class="btn primary" href="${fileUrl(it.path, true)}">Descargar (${fmtSize(it.size)})</a></div>`;
+  b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p><b>${t(it.kind === 'audio' ? 'Este audio no se puede ver en el navegador' : 'Este vídeo no se puede ver en el navegador')}</b></p>
+    <p class="np-why">${why || t('El formato {fmt} no lo reproducen los navegadores.', {fmt: esc(fmt)})} ${t('Descárgalo y ábrelo con un reproductor como VLC.')}</p>
+    <a class="btn primary" href="${fileUrl(it.path, true)}">${t('Descargar ({size})', {size: fmtSize(it.size)})}</a></div>`;
   paintIcons(b);
   const a = b.querySelector('a'); if (ANDROID_WEB) a.onclick = e => { e.preventDefault(); appOrHere(fileUrl(it.path, true), it.name); };
 }
@@ -696,10 +704,10 @@ function showMedia(it, b, url) {
   m.addEventListener('error', () => { if (vList[vIdx] === it) cantPlay(it, b); });
   m.addEventListener('loadedmetadata', () => {
     // el navegador abrio el archivo pero no sabe dibujar la imagen (p. ej. HEVC en algunos PC)
-    if (video && !m.videoWidth) toast('Solo se oye el sonido: el navegador no entiende la imagen de este vídeo', 6000);
+    if (video && !m.videoWidth) toast(t('Solo se oye el sonido: el navegador no entiende la imagen de este vídeo'), 6000);
     // seguir donde lo dejaste (solo en cosas largas, de mas de 3 minutos)
     const t = +localStorage.getItem(posKey(it)) || 0;
-    if (m.duration > 180 && t > 15 && t < m.duration - 15) { m.currentTime = t; toast('Sigue donde lo dejaste (' + fmtDur(t) + ')'); }
+    if (m.duration > 180 && t > 15 && t < m.duration - 15) { m.currentTime = t; toast(window.t('Sigue donde lo dejaste ({time})', {time: fmtDur(t)})); }
   });
   let last = 0;
   m.addEventListener('timeupdate', () => {
@@ -731,9 +739,9 @@ const fmtRate = b => fmtSize(b) + '/s';
 function fmtEta(s) {
   if (!isFinite(s) || s <= 0) return '';
   s = Math.round(s);
-  if (s < 60) return `quedan ${s} s`;
-  if (s < 3600) return `quedan ${Math.floor(s / 60)} min ${s % 60 ? (s % 60) + ' s' : ''}`.trim();
-  return `quedan ${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min ${s % 60 ? (s % 60) + ' s' : ''}`.trim();
+  return `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
 }
 function rateOf(samples, now, value) {
   samples.push([now, value]);
@@ -761,22 +769,22 @@ function drawUpGraph(pct, r) {
 setInterval(() => {
   const busy = active || queue.length, box = $('#upSpeed');
   if (!busy) { speedSamples.length = 0; speedHist.length = 0; UP.last = null; box.classList.add('hidden'); return; }
-  const t = Date.now(), r = rateOf(speedSamples, t, UP.sent);
+  const now = Date.now(), r = rateOf(speedSamples, now, UP.sent);
   box.classList.remove('hidden');
   const pct = UP.bytesTotal ? Math.min(100, UP.bytesDone / UP.bytesTotal * 100) : 0;
   // la grafica usa la velocidad de cada segundo (sube y baja como en Windows); el texto y el tiempo, la media de 5 s
-  const L = UP.last; UP.last = [t, UP.sent];
-  if (L && t > L[0]) { const inst = (UP.sent - L[1]) / ((t - L[0]) / 1000), prev = speedHist.length ? speedHist[speedHist.length - 1][1] : inst;
+  const L = UP.last; UP.last = [now, UP.sent];
+  if (L && now > L[0]) { const inst = (UP.sent - L[1]) / ((now - L[0]) / 1000), prev = speedHist.length ? speedHist[speedHist.length - 1][1] : inst;
     const x = speedHist.length ? Math.max(pct, speedHist[speedHist.length - 1][0]) : pct;  // la grafica solo avanza
     speedHist.push([x, prev * 0.4 + inst * 0.6]); if (speedHist.length > 600) speedHist.splice(0, speedHist.length - 600); }
   $('#upPct').textContent = Math.floor(pct) + '%';
   $('#upNow').textContent = UP.current || '…'; $('#upNow').title = UP.current || '';
-  $('#upRate').textContent = r == null ? 'Midiendo velocidad…' : 'Velocidad: ' + fmtRate(r);
+  $('#upRate').textContent = r == null ? t('Midiendo velocidad…') : t('Velocidad: {rate}', {rate: fmtRate(r)});
   const left = Math.max(0, UP.bytesTotal - UP.bytesDone);
-  $('#upEta').textContent = r ? fmtEta(left / r).replace(/^quedan /, '') || '—' : 'Calculando…';
+  $('#upEta').textContent = r ? fmtEta(left / r) || '—' : t('Calculando…');
   const n = Math.max(0, UP.total - UP.done - UP.skipped - UP.failed.length);
   $('#upLeft').textContent = `${n} (${fmtSize(left)})`;
-  $('#upBytes').textContent = `${fmtSize(UP.bytesDone)} de ${fmtSize(UP.bytesTotal)}`;
+  $('#upBytes').textContent = t('{a} de {b}', {a: fmtSize(UP.bytesDone), b: fmtSize(UP.bytesTotal)});
   drawUpGraph(pct, r);
 }, 1000);
 let CHUNK = 32 * 1024 * 1024; const MIN_CHUNK = 1024 * 1024, MAX_TRIES = 6;
@@ -790,7 +798,7 @@ async function enqueue(files, base) {
     const r = await api('/api/upload/check', {json: {path: base, files: files.map(f => [f.rel, f.file.size])}});
     if (r.exists.length) { list = await resolveConflicts(list, r.exists); if (!list) return; }
   } catch (e) { /* si falla la comprobacion, se sube saltando los identicos */ }
-  if (!list.length) return toast('No hay nada nuevo que subir');
+  if (!list.length) return toast(t('No hay nada nuevo que subir'));
   $('#uploads').classList.remove('hidden', 'min');
   list.forEach(f => { queue.push({...f, base, uid: null, offset: 0}); UP.total++; UP.bytesTotal += f.file.size; });
   updUpTitle(); pump();
@@ -799,14 +807,14 @@ async function enqueue(files, base) {
 /* Como el explorador de Windows: reemplazar, omitir o decidir archivo por archivo */
 async function resolveConflicts(list, exists) {
   const ex = new Map(exists.map(e => [e.rel, e])), n = exists.length, same = exists.filter(e => e.same).length;
-  const p = dialog(`<h3>${n === 1 ? 'Ya existe un archivo con ese nombre' : `${n} archivos ya existen en el destino`}</h3>
-    <p>${n === 1 ? esc(exists[0].rel) : `${same} son idénticos (mismo tamaño) y ${n - same} distintos.`}</p>
+  const p = dialog(`<h3>${n === 1 ? t('Ya existe un archivo con ese nombre') : t('{n} archivos ya existen en el destino', {n})}</h3>
+    <p>${n === 1 ? esc(exists[0].rel) : t('{same} son idénticos (mismo tamaño) y {diff} distintos.', {same, diff: n - same})}</p>
     <div class="choice-list">
-      <button class="btn primary" data-c="skip">${ic('right')} Omitir ${n === 1 ? 'este archivo' : 'estos archivos'} (subir solo lo nuevo)</button>
-      <button class="btn" data-c="overwrite">${ic('upload')} Reemplazar ${n === 1 ? 'el archivo' : 'los archivos'} del destino</button>
-      <button class="btn" data-c="rename">${ic('folderAdd')} Conservar ambos (se sube como «nombre (1)»)</button>
-      ${n > 1 ? `<button class="btn" data-c="ask">${ic('list')} Decidir para cada archivo</button>` : ''}
-      <button class="btn" data-close>Cancelar la subida</button>
+      <button class="btn primary" data-c="skip">${ic('right')} ${t(n === 1 ? 'Omitir este archivo (subir solo lo nuevo)' : 'Omitir estos archivos (subir solo lo nuevo)')}</button>
+      <button class="btn" data-c="overwrite">${ic('upload')} ${t(n === 1 ? 'Reemplazar el archivo del destino' : 'Reemplazar los archivos del destino')}</button>
+      <button class="btn" data-c="rename">${ic('folderAdd')} ${t('Conservar ambos (se sube como «nombre (1)»)')}</button>
+      ${n > 1 ? `<button class="btn" data-c="ask">${ic('list')} ${t('Decidir para cada archivo')}</button>` : ''}
+      <button class="btn" data-close>${t('Cancelar la subida')}</button>
     </div>`);
   $('#dialogBox').querySelectorAll('[data-c]').forEach(b => b.onclick = () => closeDialog(b.dataset.c));
   const choice = await p;
@@ -817,17 +825,17 @@ async function resolveConflicts(list, exists) {
   for (const f of list) {
     const e = ex.get(f.rel); if (!e) continue; i++;
     if (forAll) { decided.set(f.rel, forAll); continue; }
-    const q = dialog(`<h3>Reemplazar u omitir (${i} de ${n})</h3>
+    const q = dialog(`<h3>${t('Reemplazar u omitir ({i} de {n})', {i, n})}</h3>
       <p><b>${esc(f.rel)}</b></p>
-      <div class="cmp"><div><span>En el servidor</span>${fmtSize(e.size)} · ${fmtDate(e.mtime)}</div>
-      <div><span>El que subes</span>${fmtSize(f.file.size)} · ${fmtDate(f.file.lastModified / 1000)}</div></div>
-      ${e.same ? '<p>Tienen el mismo tamaño: seguramente es el mismo archivo.</p>' : ''}
-      <label class="forall"><input type="checkbox" id="forAll" style="width:auto"> Hacer lo mismo con los ${n - i} restantes</label>
+      <div class="cmp"><div><span>${t('En el servidor')}</span>${fmtSize(e.size)} · ${fmtDate(e.mtime)}</div>
+      <div><span>${t('El que subes')}</span>${fmtSize(f.file.size)} · ${fmtDate(f.file.lastModified / 1000)}</div></div>
+      ${e.same ? `<p>${t('Tienen el mismo tamaño: seguramente es el mismo archivo.')}</p>` : ''}
+      <label class="forall"><input type="checkbox" id="forAll" style="width:auto"> ${t('Hacer lo mismo con los {n} restantes', {n: n - i})}</label>
       <div class="choice-list">
-        <button class="btn primary" data-c="overwrite">Reemplazar</button>
-        <button class="btn" data-c="skip">Omitir</button>
-        <button class="btn" data-c="rename">Conservar ambos</button>
-        <button class="btn" data-close>Cancelar la subida</button>
+        <button class="btn primary" data-c="overwrite">${t('Reemplazar')}</button>
+        <button class="btn" data-c="skip">${t('Omitir')}</button>
+        <button class="btn" data-c="rename">${t('Conservar ambos')}</button>
+        <button class="btn" data-close>${t('Cancelar la subida')}</button>
       </div>`);
     if (n - i === 0) $('#dialogBox .forall').classList.add('hidden');
     $('#dialogBox').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { const all = $('#forAll').checked; closeDialog({c: b.dataset.c, all}); });
@@ -845,20 +853,20 @@ function applyChoice(list, ex, pick) {
     if (c === 'skip') { UP.skippedNow = (UP.skippedNow || 0) + 1; continue; }
     out.push({...f, conflict: c});
   }
-  if (UP.skippedNow) { toast(`${UP.skippedNow} archivos omitidos porque ya estaban`); UP.skippedNow = 0; }
+  if (UP.skippedNow) { toast(t('{n} archivos omitidos porque ya estaban', {n: UP.skippedNow})); UP.skippedNow = 0; }
   return out;
 }
 
 function updUpTitle() {
   const busy = active || queue.length;
-  const parts = [busy ? `Subiendo ${Math.min(UP.done + UP.skipped + UP.failed.length + 1, UP.total)} de ${UP.total}` : `${UP.done} subidos`];
-  if (UP.skipped) parts.push(`${UP.skipped} ya estaban`);
-  if (UP.failed.length) parts.push(`${UP.failed.length} con error`);
+  const parts = [busy ? t('Subiendo {i} de {n}', {i: Math.min(UP.done + UP.skipped + UP.failed.length + 1, UP.total), n: UP.total}) : t('{n} subidos', {n: UP.done})];
+  if (UP.skipped) parts.push(t('{n} ya estaban', {n: UP.skipped}));
+  if (UP.failed.length) parts.push(t('{n} con error', {n: UP.failed.length}));
   $('#upTitle').textContent = parts.join(' · ');
   $('#upTotalBar').style.width = (UP.bytesTotal ? UP.bytesDone / UP.bytesTotal * 100 : 0) + '%';
   const nf = UP.failed.length;
   $('#upFailBox').classList.toggle('hidden', !nf);
-  $('#upFailCount').textContent = nf === 1 ? '1 archivo no se ha podido subir' : `${nf} archivos no se han podido subir`;
+  $('#upFailCount').textContent = nf === 1 ? t('1 archivo no se ha podido subir') : t('{n} archivos no se han podido subir', {n: nf});
   $('#upRetry').disabled = !UP.failed.some(f => f.file);
   saveFailed();
 }
@@ -880,7 +888,7 @@ function pump() {
     uploadFile(job).then(res => {
       const st = job.row.querySelector('.st'), bar = job.row.querySelector('.bar div');
       if (res.ok) {
-        if (res.skipped) { UP.skipped++; st.textContent = 'Ya estaba'; } else { UP.done++; st.textContent = 'Listo'; }
+        if (res.skipped) { UP.skipped++; st.textContent = t('Ya estaba'); } else { UP.done++; st.textContent = t('Listo'); }
         st.className = 'st ok'; bar.style.width = '100%'; bar.className = '';
         job.row.classList.add('done'); if (upAuto()) autoClear(job.row);
       } else {
@@ -938,12 +946,12 @@ async function uploadFile(job) {
     if (r.status === 413 && (job.chunk || CHUNK) > MIN_CHUNK) {  // el proxy no admite trozos tan grandes: mas pequenos
       job.chunk = Math.max(MIN_CHUNK, Math.floor((job.chunk || CHUNK) / 2)); continue;
     }
-    const msg = r.status === 0 ? (r.timeout ? 'Tiempo de espera agotado' : 'Error de red')
-      : r.status === 413 ? 'El servidor o el proxy rechaza el tamaño de la subida' : (r.data?.detail || `Error ${r.status}`);
+    const msg = r.status === 0 ? t(r.timeout ? 'Tiempo de espera agotado' : 'Error de red')
+      : r.status === 413 ? t('El servidor o el proxy rechaza el tamaño de la subida') : (r.data?.detail || `Error ${r.status}`);
     if (NO_RETRY.has(r.status)) return {ok: false, error: msg, fatal: true};
     if (++tries >= MAX_TRIES) return {ok: false, error: msg};
     const wait = [2, 5, 10, 20, 40][tries - 1] || 60;
-    for (let s = wait; s > 0; s--) { st.textContent = `${msg}. Reintento ${tries}/${MAX_TRIES - 1} en ${s}s`; await new Promise(z => setTimeout(z, 1000)); }
+    for (let s = wait; s > 0; s--) { st.textContent = `${msg}. ` + t('Reintento {i}/{n} en {s}s', {i: tries, n: MAX_TRIES - 1, s}); await new Promise(z => setTimeout(z, 1000)); }
   }
 }
 
@@ -951,7 +959,7 @@ function retryFailed() {
   const again = UP.failed.filter(f => f.file); if (!again.length) return;
   UP.failed = UP.failed.filter(f => !f.file);
   // se continua la misma subida (mismo uid): el servidor dice desde que byte seguir
-  again.forEach(f => { f.row && f.row.querySelector('.st') && (f.row.querySelector('.st').textContent = 'En cola'); queue.push({file: f.file, rel: f.rel, base: f.base, conflict: f.conflict, row: f.row, uid: f.uid || null, offset: f.offset || 0, chunk: f.chunk}); });
+  again.forEach(f => { f.row && f.row.querySelector('.st') && (f.row.querySelector('.st').textContent = t('En cola')); queue.push({file: f.file, rel: f.rel, base: f.base, conflict: f.conflict, row: f.row, uid: f.uid || null, offset: f.offset || 0, chunk: f.chunk}); });
   $('#uploads').classList.remove('hidden', 'min'); updUpTitle(); pump();
 }
 function failedText() { return UP.failed.map(f => `${f.base ? f.base + '/' : ''}${f.rel}\t${f.error}`).join('\n'); }
@@ -986,8 +994,8 @@ function maybeHide() {
 $('#upClean').onclick = cleanDone;
 $('#upMin').onclick = () => $('#uploads').classList.toggle('min');
 $('#upClose').onclick = () => {
-  if (active || queue.length) { $('#uploads').classList.add('min'); return toast('Las subidas siguen en segundo plano'); }
-  if (UP.failed.length) { $('#uploads').classList.add('min'); return toast('Hay archivos con error: reinténtalos o pulsa «Descartar»'); }
+  if (active || queue.length) { $('#uploads').classList.add('min'); return toast(t('Las subidas siguen en segundo plano')); }
+  if (UP.failed.length) { $('#uploads').classList.add('min'); return toast(t('Hay archivos con error: reinténtalos o pulsa «Descartar»')); }
   $('#uploads').classList.add('hidden'); $('#upList').innerHTML = ''; maybeHide();
 };
 window.addEventListener('beforeunload', e => { if (active || queue.length) { e.preventDefault(); e.returnValue = ''; } });
@@ -1023,18 +1031,18 @@ async function renderUsers() {
   crumbs(); $('#emptyTrash').classList.add('hidden'); updateSel();
   const {users} = await api('/api/admin/users');
   updateBadge(users.filter(u => u.status === 'pending').length);
-  const st = {approved: 'Aprobado', pending: 'Pendiente', blocked: 'Bloqueado'};
-  $('#content').innerHTML = `<div style="display:flex;justify-content:flex-end;margin:12px 0 4px"><button class="btn primary" id="addUser">${ic('plus')} Crear usuario</button></div><div class="tablewrap"><table class="list users"><thead><tr><th>Usuario</th><th>Estado</th><th>Rol</th><th>Usado</th><th>Cuota (GB, 0 = sin límite)</th><th></th></tr></thead><tbody>` +
+  const st = {approved: t('Aprobado'), pending: t('Pendiente'), blocked: t('Bloqueado')};
+  $('#content').innerHTML = `<div style="display:flex;justify-content:flex-end;margin:12px 0 4px"><button class="btn primary" id="addUser">${ic('plus')} ${t('Crear usuario')}</button></div><div class="tablewrap"><table class="list users"><thead><tr><th>${t('Usuario')}</th><th>${t('Estado')}</th><th>${t('Rol')}</th><th>${t('Usado')}</th><th>${t('Cuota (GB, 0 = sin límite)')}</th><th></th></tr></thead><tbody>` +
     users.map(u => `<tr data-id="${u.id}"><td><div style="display:flex;align-items:center;gap:10px">${avatarHtml(u.username, u.avatar, 'sm')}<b>${esc(u.username)}</b></div></td><td><span class="pill ${u.status}">${st[u.status]}</span></td>
-      <td><select data-f="role"><option value="0">Usuario</option><option value="1" ${u.is_admin ? 'selected' : ''}>Admin</option></select></td>
+      <td><select data-f="role"><option value="0">${t('Usuario')}</option><option value="1" ${u.is_admin ? 'selected' : ''}>${t('Admin')}</option></select></td>
       <td class="c-m">${fmtSize(u.used)}</td>
       <td><input data-f="quota" type="number" min="0" step="0.5" value="${+(u.quota / 1073741824).toFixed(2)}"></td>
-      <td><div class="acts">${u.status !== 'approved' ? '<button class="btn small primary" data-a="approve">Aprobar</button>' : '<button class="btn small" data-a="block">Bloquear</button>'}
-      <button class="btn small" data-a="pass">Contraseña</button><button class="btn small danger" data-a="del">Eliminar</button></div></td></tr>`).join('') + `</tbody></table></div>
-    <p class="c-m" style="margin-top:16px">Los nuevos registros quedan <b>pendientes</b> hasta que los apruebes aquí.</p>`;
+      <td><div class="acts">${u.status !== 'approved' ? `<button class="btn small primary" data-a="approve">${t('Aprobar')}</button>` : `<button class="btn small" data-a="block">${t('Bloquear')}</button>`}
+      <button class="btn small" data-a="pass">${t('Contraseña')}</button><button class="btn small danger" data-a="del">${t('Eliminar')}</button></div></td></tr>`).join('') + `</tbody></table></div>
+    <p class="c-m" style="margin-top:16px">${t('Los nuevos registros quedan <b>pendientes</b> hasta que los apruebes aquí.')}</p>`;
   $('#addUser').onclick = addUserDialog;
 
-  const upd = async (id, body) => { try { await api('/api/admin/users/' + id, {json: body}); toast('Guardado'); renderUsers(); } catch (e) { toast(e.message); renderUsers(); } };
+  const upd = async (id, body) => { try { await api('/api/admin/users/' + id, {json: body}); toast(t('Guardado')); renderUsers(); } catch (e) { toast(e.message); renderUsers(); } };
   $$('.users tr[data-id]').forEach(tr => {
     const id = tr.dataset.id, name = tr.querySelector('b').textContent;
     tr.querySelector('[data-f="role"]').onchange = e => upd(id, {is_admin: e.target.value === '1'});
@@ -1043,11 +1051,11 @@ async function renderUsers() {
       const a = b.dataset.a;
       if (a === 'approve') upd(id, {status: 'approved'});
       if (a === 'block') upd(id, {status: 'blocked'});
-      if (a === 'pass') { const pw = await promptDialog('Nueva contraseña para ' + name, '', 'Guardar'); if (pw) upd(id, {password: pw}); }
+      if (a === 'pass') { const pw = await promptDialog(t('Nueva contraseña para {user}', {user: name}), '', t('Guardar')); if (pw) upd(id, {password: pw}); }
       if (a === 'del') {
-        const p = dialog(`<h3>Eliminar a ${esc(name)}</h3><p>Se eliminará la cuenta. Si no borras sus archivos, se apartan a la carpeta <code>archivo/</code> de los datos para que una cuenta nueva con el mismo nombre no los vea.</p><label><input type="checkbox" id="delFiles" style="width:auto"> Borrar también todos sus archivos del disco</label>
-          <div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="delOk">Eliminar</button></div>`);
-        $('#delOk').onclick = async () => { const f = $('#delFiles').checked ? 1 : 0; closeDialog(); try { const r = await api(`/api/admin/users/${id}?files=${f}`, {method: 'DELETE'}); toast(r && r.archived ? 'Eliminado. Archivos guardados en archivo/' + r.archived : 'Eliminado'); renderUsers(); } catch (e) { toast(e.message); } };
+        const p = dialog(`<h3>${t('Eliminar a {user}', {user: esc(name)})}</h3><p>${t('Se eliminará la cuenta. Si no borras sus archivos, se apartan a la carpeta <code>archivo/</code> de los datos para que una cuenta nueva con el mismo nombre no los vea.')}</p><label><input type="checkbox" id="delFiles" style="width:auto"> ${t('Borrar también todos sus archivos del disco')}</label>
+          <div class="actions"><button class="btn" data-close>${t('Cancelar')}</button><button class="btn primary" id="delOk">${t('Eliminar')}</button></div>`);
+        $('#delOk').onclick = async () => { const f = $('#delFiles').checked ? 1 : 0; closeDialog(); try { const r = await api(`/api/admin/users/${id}?files=${f}`, {method: 'DELETE'}); toast(r && r.archived ? t('Eliminado. Archivos guardados en archivo/{dir}', {dir: r.archived}) : t('Eliminado')); renderUsers(); } catch (e) { toast(e.message); } };
         await p;
       }
     });
@@ -1055,18 +1063,18 @@ async function renderUsers() {
 }
 
 async function addUserDialog() {
-  const p = dialog(`<h3>Crear usuario</h3><form id="nuf">
-    <label>Usuario</label><input id="nuName" autocapitalize="none" autocomplete="off" required>
-    <label>Contraseña (mínimo 6 caracteres)</label><input id="nuPass" type="text" autocomplete="off" required>
-    <label>Cuota en GB (0 = sin límite)</label><input id="nuQuota" type="number" min="0" step="0.5" value="0">
-    <label style="display:flex;align-items:center;gap:8px"><input id="nuAdmin" type="checkbox" style="width:auto"> Administrador</label>
-    <div class="actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn primary">Crear</button></div></form>`);
+  const p = dialog(`<h3>${t('Crear usuario')}</h3><form id="nuf">
+    <label>${t('Usuario')}</label><input id="nuName" autocapitalize="none" autocomplete="off" required>
+    <label>${t('Contraseña (mínimo 6 caracteres)')}</label><input id="nuPass" type="text" autocomplete="off" required>
+    <label>${t('Cuota en GB (0 = sin límite)')}</label><input id="nuQuota" type="number" min="0" step="0.5" value="0">
+    <label style="display:flex;align-items:center;gap:8px"><input id="nuAdmin" type="checkbox" style="width:auto"> ${t('Administrador')}</label>
+    <div class="actions"><button type="button" class="btn" data-close>${t('Cancelar')}</button><button class="btn primary">${t('Crear')}</button></div></form>`);
   $('#nuf').onsubmit = async e => {
     e.preventDefault();
     try {
       await api('/api/admin/users', {json: {username: $('#nuName').value.trim(), password: $('#nuPass').value,
         quota_gb: parseFloat($('#nuQuota').value.replace(',', '.')) || 0, is_admin: $('#nuAdmin').checked}});
-      toast('Usuario creado'); closeDialog(); renderUsers();
+      toast(t('Usuario creado')); closeDialog(); renderUsers();
     } catch (err) { toast(err.message); }
   };
   return p;
@@ -1080,11 +1088,11 @@ async function loadStats() {
     LIVE.push({t: Date.now(), cpu: s.cpu, mem: s.mem ? s.mem.used / s.mem.total * 100 : null, temp: s.temp});
     if (LIVE.length > 60) LIVE.shift();
     if (S.view === 'panel') paintLive();
-    $('#stUser').textContent = fmtSize(s.used) + (s.quota ? ' de ' + fmtSize(s.quota) : '');
+    $('#stUser').textContent = s.quota ? t('{a} de {b}', {a: fmtSize(s.used), b: fmtSize(s.quota)}) : fmtSize(s.used);
     setBar('#barUser', s.quota ? s.used / s.quota * 100 : 0);
-    $('#stDisk').textContent = fmtSize(s.disk.free) + ' libres'; setBar('#barDisk', (s.disk.total - s.disk.free) / s.disk.total * 100);
+    $('#stDisk').textContent = t('{size} libres', {size: fmtSize(s.disk.free)}); setBar('#barDisk', (s.disk.total - s.disk.free) / s.disk.total * 100);
     if (s.cpu != null) { $('#stCpu').textContent = Math.round(s.cpu) + '%'; setBar('#barCpu', s.cpu); }
-    if (s.temp != null) { $('#stTemp').textContent = s.temp.toFixed(1).replace('.', ',') + ' °C'; setBar('#barTemp', (s.temp - 30) / 55 * 100, 60, 80); }
+    if (s.temp != null) { $('#stTemp').textContent = dec(s.temp.toFixed(1)) + ' °C'; setBar('#barTemp', (s.temp - 30) / 55 * 100, 60, 80); }
     else $('#stTemp').closest('.stat').classList.add('hidden');
     paintDiskAlert(s.disk_alert);
     if (s.mem) { $('#stMem').textContent = fmtSize(s.mem.used) + ' / ' + fmtSize(s.mem.total); setBar('#barMem', s.mem.used / s.mem.total * 100); }
@@ -1097,13 +1105,13 @@ function paintDiskAlert(a) {
   const key = a ? a.level + ':' + Math.round(a.since) : '';
   let closed = ''; try { closed = localStorage.getItem('dp-diskalert') || ''; } catch (e) {}
   if (!a || closed === key) { el.classList.add('hidden'); return; }
-  const pct = String(a.pct).replace('.', ',');
+  const pct = dec(a.pct);
   const txt = a.level >= 2
-    ? `<b>El disco está lleno (${pct} %).</b> Solo quedan ${fmtSize(a.free)} libres y puede que no se puedan subir más archivos.` + (S.me.is_admin ? ' Borra lo que no necesites y vacía la papelera.' : ' Avisa al administrador.')
-    : `<b>El disco está casi lleno (${pct} %).</b> Quedan ${fmtSize(a.free)} libres.`;
+    ? t('<b>El disco está lleno ({pct} %).</b> Solo quedan {size} libres y puede que no se puedan subir más archivos.', {pct, size: fmtSize(a.free)}) + ' ' + (S.me.is_admin ? t('Borra lo que no necesites y vacía la papelera.') : t('Avisa al administrador.'))
+    : t('<b>El disco está casi lleno ({pct} %).</b> Quedan {size} libres.', {pct, size: fmtSize(a.free)});
   el.className = 'disk-alert ' + (a.level >= 2 ? 'crit' : 'warn');
-  el.innerHTML = `${ic('warn')}<span>${txt}</span>` + (S.me.is_admin ? `<button class="btn small" data-da="panel">Ver qué ocupa más</button>` : '') +
-    `<button class="icon-btn" data-da="close" title="Ocultar este aviso">${ic('close')}</button>`;
+  el.innerHTML = `${ic('warn')}<span>${txt}</span>` + (S.me.is_admin ? `<button class="btn small" data-da="panel">${t('Ver qué ocupa más')}</button>` : '') +
+    `<button class="icon-btn" data-da="close" title="${t('Ocultar este aviso')}">${ic('close')}</button>`;
   el.querySelector('[data-da="panel"]')?.addEventListener('click', () => go('panel'));
   el.querySelector('[data-da="close"]').onclick = () => { try { localStorage.setItem('dp-diskalert', key); } catch (e) {} el.classList.add('hidden'); };
 }
@@ -1122,7 +1130,7 @@ $('#quickMenu').onclick = e => {
   if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
   if (['panel', 'recent', 'shared', 'trash'].includes(a)) go(a);
   if (a === 'webdav') webdavDialog();
-  if (a === 'reload') { load(); loadStats(); toast('Actualizado', 1200); }
+  if (a === 'reload') { load(); loadStats(); toast(t('Actualizado'), 1200); }
 };
 $('#userBtn').onclick = () => { $('#quickMenu').classList.add('hidden'); $('#userMenu').classList.toggle('hidden'); };
 $('#userMenu').onclick = async e => {
@@ -1131,7 +1139,7 @@ $('#userMenu').onclick = async e => {
   if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'home') homeDialog();
   if (a === 'settings') go('settings');
   if (a === 'avatar') $('#avatarInput').click();
-  if (a === 'avatarDel') { await api('/api/avatar', {method: 'DELETE'}); S.me.avatar = 0; paintAvatars(); toast('Foto quitada'); }
+  if (a === 'avatarDel') { await api('/api/avatar', {method: 'DELETE'}); S.me.avatar = 0; paintAvatars(); toast(t('Foto quitada')); }
 };
 $('#nav').onclick = e => { const a = e.target.closest('[data-view]'); if (a) go(a.dataset.view); };
 $('#gridBtn').onclick = () => setMode('grid'); $('#listBtn').onclick = () => setMode('list');
@@ -1141,8 +1149,9 @@ $('#search').addEventListener('input', e => { clearTimeout(searchT); searchT = s
   S.q = e.target.value.trim(); if (S.q && ['users', 'trash', 'shared', 'panel', 'settings'].includes(S.view)) { S.view = 'drive'; $$('#nav a').forEach(a => a.classList.remove('active')); }
   if (!S.q) return route(); load(); }, 300); });
 const THEMES = ['auto', 'light', 'dark'], TNAME = {auto: 'Tema: automático', light: 'Tema: claro', dark: 'Tema: oscuro'}, TICON = {auto: 'auto', light: 'sun', dark: 'moon'};
-function paintTheme() { const t = document.documentElement.dataset.theme || 'auto'; const b = $('#themeBtn'); b.title = TNAME[t]; b.innerHTML = ic(TICON[t]); }
-$('#themeBtn').onclick = () => { const t = THEMES[(THEMES.indexOf(document.documentElement.dataset.theme || 'auto') + 1) % 3]; document.documentElement.dataset.theme = t; try { localStorage.setItem('dp-theme', t); } catch (e) {} paintTheme(); toast(TNAME[t], 1500); };
+const THEME_OPT = {auto: 'Automático', light: 'Claro', dark: 'Oscuro'};
+function paintTheme() { const th = document.documentElement.dataset.theme || 'auto'; const b = $('#themeBtn'); b.title = t(TNAME[th]); b.innerHTML = ic(TICON[th]); }
+$('#themeBtn').onclick = () => { const th = THEMES[(THEMES.indexOf(document.documentElement.dataset.theme || 'auto') + 1) % 3]; document.documentElement.dataset.theme = th; try { localStorage.setItem('dp-theme', th); } catch (e) {} paintTheme(); toast(t(TNAME[th]), 1500); };
 $('#menuBtn').onclick = () => { $('#sidebar').classList.add('open'); $('#scrim').classList.remove('hidden'); };
 $('#scrim').onclick = closeSidebar;
 function closeSidebar() { $('#sidebar').classList.remove('open'); $('#scrim').classList.add('hidden'); }
@@ -1154,8 +1163,9 @@ function applyAccent(a) {
   document.documentElement.dataset.accent = a;
   try { localStorage.setItem('dp-accent', a); } catch (e) {}
 }
-const fmtGB = b => (b / 1073741824).toFixed(b < 10 * 1073741824 ? 1 : 0).replace('.', ',') + ' GB';
-const profLine = p => `${p.upload_parallel} ${p.upload_parallel === 1 ? 'subida' : 'subidas'} a la vez · trozos de ${p.chunk_mb} MB · ${p.thumb_workers} ${p.thumb_workers === 1 ? 'miniatura' : 'miniaturas'} a la vez`;
+const fmtGB = b => dec((b / 1073741824).toFixed(b < 10 * 1073741824 ? 1 : 0)) + ' GB';
+const profLine = p => [t(p.upload_parallel === 1 ? '{n} subida a la vez' : '{n} subidas a la vez', {n: p.upload_parallel}), t('trozos de {n} MB', {n: p.chunk_mb}),
+  t(p.thumb_workers === 1 ? '{n} miniatura a la vez' : '{n} miniaturas a la vez', {n: p.thumb_workers})].join(' · ');
 
 async function renderSettings() {
   crumbs(); $('#emptyTrash').classList.add('hidden'); updateSel();
@@ -1165,36 +1175,38 @@ async function renderSettings() {
   if (S.view !== 'settings') return;
   const theme = document.documentElement.dataset.theme || 'auto';
   let h = `<div class="settings">
-    <section class="card"><div class="set-head">${ic('account')}<div><h4>Tus preferencias</h4><div class="sub">Solo para ti</div></div></div>
-      <div class="set-row"><span><b>Carpetas de Fotos</b><small id="stPhDirs">De qué carpetas salen las fotos y vídeos en «Fotos»</small></span>
-        <button class="btn small" id="stPhBtn">${ic('folder')} Elegir carpetas</button></div>
-      <label class="set-row"><span><b>Pantalla de inicio</b><small>Lo que se abre al entrar en DrivePanel</small></span>
-        <select id="stHome">${Object.entries(HOMES).map(([k, v]) => `<option value="${k}" ${k === homeView() ? 'selected' : ''}>${v[1]}</option>`).join('')}</select></label>
-      <label class="set-row"><span><b>Tema</b><small>Claro, oscuro o el que tenga el dispositivo</small></span>
-        <select id="stTheme">${THEMES.map(t => `<option value="${t}" ${t === theme ? 'selected' : ''}>${TNAME[t].replace('Tema: ', '').replace(/^./, x => x.toUpperCase())}</option>`).join('')}</select></label>
+    <section class="card"><div class="set-head">${ic('account')}<div><h4>${t('Tus preferencias')}</h4><div class="sub">${t('Solo para ti')}</div></div></div>
+      <label class="set-row"><span><b>${t('Idioma')}${LANG === 'en' ? '' : ' · Language'}</b><small>${t('El idioma de DrivePanel en todos tus dispositivos')}</small></span>
+        <select id="stLang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === LANG ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+      <div class="set-row"><span><b>${t('Carpetas de Fotos')}</b><small id="stPhDirs">${t('De qué carpetas salen las fotos y vídeos en «Fotos»')}</small></span>
+        <button class="btn small" id="stPhBtn">${ic('folder')} ${t('Elegir carpetas')}</button></div>
+      <label class="set-row"><span><b>${t('Pantalla de inicio')}</b><small>${t('Lo que se abre al entrar en DrivePanel')}</small></span>
+        <select id="stHome">${Object.entries(HOMES).map(([k, v]) => `<option value="${k}" ${k === homeView() ? 'selected' : ''}>${t(v[1])}</option>`).join('')}</select></label>
+      <label class="set-row"><span><b>${t('Tema')}</b><small>${t('Claro, oscuro o el que tenga el dispositivo')}</small></span>
+        <select id="stTheme">${THEMES.map(th => `<option value="${th}" ${th === theme ? 'selected' : ''}>${t(THEME_OPT[th])}</option>`).join('')}</select></label>
     </section>`;
   let AL = null;
   if (S.me.is_admin) { try { AL = await api('/api/admin/alerts'); } catch (e) {} }
   if (S.view !== 'settings') return;
   if (A) {
     const d = A.detected, sug = A.profiles[d.suggest];
-    h += `<section class="card"><div class="set-head">${ic('memory')}<div><h4>Máquina donde funciona DrivePanel</h4><div class="sub">Según la máquina, DrivePanel hace más o menos cosas a la vez. Vale para todos los usuarios, en la web y en la app del móvil.</div></div></div>
-      <div class="detect">${ic('info')}<span>Detectado: <b>${esc(d.name)}</b> · ${d.cpus} ${d.cpus === 1 ? 'núcleo' : 'núcleos'}${d.ram ? ' · ' + fmtGB(d.ram) + ' de RAM' : ''}. Recomendado: <b>${esc(sug.name)}</b>.</span></div>
+    h += `<section class="card"><div class="set-head">${ic('memory')}<div><h4>${t('Máquina donde funciona DrivePanel')}</h4><div class="sub">${t('Según la máquina, DrivePanel hace más o menos cosas a la vez. Vale para todos los usuarios, en la web y en la app del móvil.')}</div></div></div>
+      <div class="detect">${ic('info')}<span>${t('Detectado:')} <b>${esc(t(d.name))}</b> · ${t(d.cpus === 1 ? '{n} núcleo' : '{n} núcleos', {n: d.cpus})}${d.ram ? ' · ' + t('{size} de RAM', {size: fmtGB(d.ram)}) : ''}. ${t('Recomendado:')} <b>${esc(t(sug.name))}</b>.</span></div>
       <div class="profiles">${Object.entries(A.profiles).map(([k, p]) => `<button class="prof ${k === A.machine ? 'on' : ''}" data-prof="${k}">
-        <b>${esc(p.name)}${k === d.suggest ? ' <span class="tag">recomendado</span>' : ''}</b><small>${esc(p.desc)}</small>
+        <b>${esc(t(p.name))}${k === d.suggest ? ` <span class="tag">${t('recomendado')}</span>` : ''}</b><small>${esc(t(p.desc))}</small>
         ${k === 'custom' ? '' : `<em>${profLine(p)}</em>`}</button>`).join('')}</div>
       <div id="customBox" class="${A.machine === 'custom' ? '' : 'hidden'}">
-        <label class="set-row"><span><b>Subidas a la vez</b><small>Cuántos archivos se suben al mismo tiempo</small></span>
+        <label class="set-row"><span><b>${t('Subidas a la vez')}</b><small>${t('Cuántos archivos se suben al mismo tiempo')}</small></span>
           <select data-cu="upload_parallel">${[1, 2, 3, 4, 5, 6].map(n => `<option ${n === A.custom.upload_parallel ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label class="set-row"><span><b>Tamaño de cada trozo</b><small>Más grande va algo más rápido; más pequeño aguanta mejor los cortes y los proxys</small></span>
+        <label class="set-row"><span><b>${t('Tamaño de cada trozo')}</b><small>${t('Más grande va algo más rápido; más pequeño aguanta mejor los cortes y los proxys')}</small></span>
           <select data-cu="chunk_mb">${A.chunks.map(n => `<option value="${n}" ${n === A.custom.chunk_mb ? 'selected' : ''}>${n} MB</option>`).join('')}</select></label>
-        <label class="set-row"><span><b>Miniaturas a la vez</b><small>Fotos que se preparan a la vez para verlas en pequeño</small></span>
+        <label class="set-row"><span><b>${t('Miniaturas a la vez')}</b><small>${t('Fotos que se preparan a la vez para verlas en pequeño')}</small></span>
           <select data-cu="thumb_workers">${[1, 2, 3, 4].map(n => `<option ${n === A.custom.thumb_workers ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       </div>
-      <div class="sub now">Ahora: <b>${profLine(A.effective)}</b></div>
+      <div class="sub now">${t('Ahora:')} <b>${profLine(A.effective)}</b></div>
     </section>
-    <section class="card"><div class="set-head">${ic('palette')}<div><h4>Color de la aplicación</h4><div class="sub">Para todos los usuarios. Claro u oscuro lo sigue eligiendo cada uno arriba.</div></div></div>
-      <div class="swatches">${A.accents.map(a => `<button class="sw-btn ${a === A.accent ? 'on' : ''}" data-acc="${a}" title="${ACCENT_NAME[a]}"><i class="dot" data-accent-dot="${a}"></i><span>${ACCENT_NAME[a]}</span></button>`).join('')}</div>
+    <section class="card"><div class="set-head">${ic('palette')}<div><h4>${t('Color de la aplicación')}</h4><div class="sub">${t('Para todos los usuarios. Claro u oscuro lo sigue eligiendo cada uno arriba.')}</div></div></div>
+      <div class="swatches">${A.accents.map(a => `<button class="sw-btn ${a === A.accent ? 'on' : ''}" data-acc="${a}" title="${t(ACCENT_NAME[a])}"><i class="dot" data-accent-dot="${a}"></i><span>${t(ACCENT_NAME[a])}</span></button>`).join('')}</div>
     </section>`;
   }
   if (AL) h += alertsCard(AL);
@@ -1202,67 +1214,72 @@ async function renderSettings() {
   c.innerHTML = h;
   if (AL) bindAlertsCard(AL);
   $('#stPhBtn').onclick = photoDirsDialog;
-  api('/api/photos/folders').then(r => { const el = $('#stPhDirs'); if (el) el.textContent = 'Ahora: ' + (r.dirs.length ? r.dirs.join(', ') : 'todas las carpetas'); }).catch(() => {});
-  $('#stHome').onchange = e => { try { localStorage.setItem('dp-home', e.target.value); } catch (er) {} toast('Al entrar se abrirá: ' + HOMES[e.target.value][1]); };
+  api('/api/photos/folders').then(r => { const el = $('#stPhDirs'); if (el) el.textContent = t('Ahora:') + ' ' + (r.dirs.length ? r.dirs.join(', ') : t('todas las carpetas')); }).catch(() => {});
+  $('#stLang').onchange = async e => {
+    const l = e.target.value;
+    try { await api('/api/me/lang', {json: {lang: l}}); } catch (er) { return toast(er.message); }
+    setLang(l); location.reload();
+  };
+  $('#stHome').onchange = e => { try { localStorage.setItem('dp-home', e.target.value); } catch (er) {} toast(t('Al entrar se abrirá: {what}', {what: t(HOMES[e.target.value][1])})); };
   $('#stTheme').onchange = e => { document.documentElement.dataset.theme = e.target.value; try { localStorage.setItem('dp-theme', e.target.value); } catch (er) {} paintTheme(); };
   if (!A) return;
   const save = async (body, msg) => {
     try { const r = await api('/api/admin/settings', {json: body}); S.me.upload_parallel = r.effective.upload_parallel; S.me.chunk_mb = r.effective.chunk_mb; CHUNK = r.effective.chunk_mb * 1048576; S.me.accent = r.accent; toast(msg); renderSettings(); }
     catch (e) { toast(e.message); }
   };
-  c.querySelectorAll('[data-prof]').forEach(b => b.onclick = () => save({machine: b.dataset.prof}, 'Perfil: ' + A.profiles[b.dataset.prof].name));
-  c.querySelectorAll('[data-cu]').forEach(s => s.onchange = () => save({custom: {[s.dataset.cu]: +s.value}}, 'Guardado'));
-  c.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { applyAccent(b.dataset.acc); save({accent: b.dataset.acc}, 'Color: ' + ACCENT_NAME[b.dataset.acc]); });
+  c.querySelectorAll('[data-prof]').forEach(b => b.onclick = () => save({machine: b.dataset.prof}, t('Perfil: {name}', {name: t(A.profiles[b.dataset.prof].name)})));
+  c.querySelectorAll('[data-cu]').forEach(s => s.onchange = () => save({custom: {[s.dataset.cu]: +s.value}}, t('Guardado')));
+  c.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { applyAccent(b.dataset.acc); save({accent: b.dataset.acc}, t('Color: {name}', {name: t(ACCENT_NAME[b.dataset.acc])})); });
 }
 
 /* ---------- Ajustes > Avisos de disco lleno (solo administrador) ---------- */
 function alertsCard(AL) {
-  const st = AL.status, tg = AL.telegram, pct = String(st.pct).replace('.', ',');
-  const now = !AL.enabled ? 'Avisos apagados' : st.level >= 2 ? `🔴 Lleno: ${pct} % usado` : st.level === 1 ? `🟠 Casi lleno: ${pct} % usado` : `🟢 Bien: ${pct} % usado`;
+  const st = AL.status, tg = AL.telegram, pct = dec(st.pct);
+  const now = !AL.enabled ? t('Avisos apagados') : st.level >= 2 ? '🔴 ' + t('Lleno: {pct} % usado', {pct}) : st.level === 1 ? '🟠 ' + t('Casi lleno: {pct} % usado', {pct}) : '🟢 ' + t('Bien: {pct} % usado', {pct});
   const opts = (list, val) => [...new Set([...list, val])].sort((a, b) => a - b).map(n => `<option value="${n}" ${n === val ? 'selected' : ''}>${n} %</option>`).join('');
-  return `<section class="card" id="alertsCard"><div class="set-head">${ic('bell')}<div><h4>Avisos de disco lleno</h4><div class="sub">DrivePanel mira el disco cada minuto y avisa una sola vez cuando se va llenando. El aviso sale aquí arriba en la web y en la app del móvil.</div></div></div>
-    <div class="detect">${ic('info')}<span>Ahora: <b>${now}</b> · ${fmtSize(st.free)} libres de ${fmtSize(st.total)}</span></div>
-    <label class="set-row"><span><b>Avisar</b><small>Si lo apagas no sale ningún aviso</small></span>
-      <select id="alEnabled"><option value="1" ${AL.enabled ? 'selected' : ''}>Sí</option><option value="0" ${AL.enabled ? '' : 'selected'}>No</option></select></label>
-    <label class="set-row"><span><b>Casi lleno</b><small>Primer aviso (solo lo ve el administrador)</small></span>
+  return `<section class="card" id="alertsCard"><div class="set-head">${ic('bell')}<div><h4>${t('Avisos de disco lleno')}</h4><div class="sub">${t('DrivePanel mira el disco cada minuto y avisa una sola vez cuando se va llenando. El aviso sale aquí arriba en la web y en la app del móvil.')}</div></div></div>
+    <div class="detect">${ic('info')}<span>${t('Ahora:')} <b>${now}</b> · ${t('{a} libres de {b}', {a: fmtSize(st.free), b: fmtSize(st.total)})}</span></div>
+    <label class="set-row"><span><b>${t('Avisar')}</b><small>${t('Si lo apagas no sale ningún aviso')}</small></span>
+      <select id="alEnabled"><option value="1" ${AL.enabled ? 'selected' : ''}>${t('Sí')}</option><option value="0" ${AL.enabled ? '' : 'selected'}>${t('No')}</option></select></label>
+    <label class="set-row"><span><b>${t('Casi lleno')}</b><small>${t('Primer aviso (solo lo ve el administrador)')}</small></span>
       <select id="alWarn">${opts([60, 70, 75, 80, 85, 90, 95], AL.warn)}</select></label>
-    <label class="set-row"><span><b>Lleno</b><small>Segundo aviso (lo ven todos los usuarios)</small></span>
+    <label class="set-row"><span><b>${t('Lleno')}</b><small>${t('Segundo aviso (lo ven todos los usuarios)')}</small></span>
       <select id="alCrit">${opts([80, 85, 90, 95, 97, 98, 99], AL.crit)}</select></label>
-    <div class="set-sub"><b>${ic('send')} Avisos por Telegram</b> <span class="tag">opcional</span>
-      <small>Si tienes un bot de Telegram, DrivePanel te puede mandar el aviso al móvil. Si no lo tienes, no hace falta: el aviso sale igual en la web y en la app.</small></div>
-    ${tg.token_set ? `<div class="detect ok">${ic('check')}<span>Telegram activado${tg.chat ? ' · chat ' + esc(tg.chat) : ''}</span></div>` : ''}
-    <details class="howto"${tg.token_set ? '' : ' open'}><summary>Cómo conseguir el bot (2 minutos)</summary><ol>
-      <li>En Telegram, busca <b>@BotFather</b> y ábrelo.</li>
-      <li>Escríbele <b>/newbot</b> y sigue los pasos: un nombre y un usuario que acabe en «bot».</li>
-      <li>Te dará un <b>token</b> (algo como <code>123456789:AAH…</code>). Cópialo y pégalo aquí abajo.</li>
-      <li>Abre tu bot nuevo, pulsa <b>Iniciar</b> y escríbele cualquier cosa, por ejemplo «hola».</li>
-      <li>Pulsa <b>Buscar mi chat</b> y luego <b>Probar</b>. Si te llega el mensaje, pulsa <b>Guardar</b>.</li></ol></details>
+    <div class="set-sub"><b>${ic('send')} ${t('Avisos por Telegram')}</b> <span class="tag">${t('opcional')}</span>
+      <small>${t('Si tienes un bot de Telegram, DrivePanel te puede mandar el aviso al móvil. Si no lo tienes, no hace falta: el aviso sale igual en la web y en la app.')}</small></div>
+    ${tg.token_set ? `<div class="detect ok">${ic('check')}<span>${t('Telegram activado')}${tg.chat ? ' · chat ' + esc(tg.chat) : ''}</span></div>` : ''}
+    <details class="howto"${tg.token_set ? '' : ' open'}><summary>${t('Cómo conseguir el bot (2 minutos)')}</summary><ol>
+      <li>${t('En Telegram, busca <b>@BotFather</b> y ábrelo.')}</li>
+      <li>${t('Escríbele <b>/newbot</b> y sigue los pasos: un nombre y un usuario que acabe en «bot».')}</li>
+      <li>${t('Te dará un <b>token</b> (algo como <code>123456789:AAH…</code>). Cópialo y pégalo aquí abajo.')}</li>
+      <li>${t('Abre tu bot nuevo, pulsa <b>Iniciar</b> y escríbele cualquier cosa, por ejemplo «hola».')}</li>
+      <li>${t('Pulsa <b>Buscar mi chat</b> y luego <b>Probar</b>. Si te llega el mensaje, pulsa <b>Guardar</b>.')}</li></ol></details>
     <div class="tg-form">
-      <label><small>Token del bot</small><input id="alToken" type="password" autocomplete="off" spellcheck="false" placeholder="${tg.token_set ? 'Guardado (' + esc(tg.token_hint) + '). Pega otro para cambiarlo' : 'Pega aquí el token de @BotFather'}"></label>
-      <label><small>Chat</small><span class="tg-chat"><input id="alChat" inputmode="numeric" autocomplete="off" placeholder="Número de tu chat" value="${esc(tg.chat)}"><button class="btn small" id="alFind">${ic('search')} Buscar mi chat</button></span></label>
-      <div class="tg-btns"><button class="btn small" id="alTest">${ic('send')} Probar</button><button class="btn small primary" id="alSave">Guardar</button>${tg.token_set ? `<button class="btn small" id="alClear">Quitar Telegram</button>` : ''}</div>
+      <label><small>${t('Token del bot')}</small><input id="alToken" type="password" autocomplete="off" spellcheck="false" placeholder="${tg.token_set ? t('Guardado ({hint}). Pega otro para cambiarlo', {hint: esc(tg.token_hint)}) : t('Pega aquí el token de @BotFather')}"></label>
+      <label><small>${t('Chat')}</small><span class="tg-chat"><input id="alChat" inputmode="numeric" autocomplete="off" placeholder="${t('Número de tu chat')}" value="${esc(tg.chat)}"><button class="btn small" id="alFind">${ic('search')} ${t('Buscar mi chat')}</button></span></label>
+      <div class="tg-btns"><button class="btn small" id="alTest">${ic('send')} ${t('Probar')}</button><button class="btn small primary" id="alSave">${t('Guardar')}</button>${tg.token_set ? `<button class="btn small" id="alClear">${t('Quitar Telegram')}</button>` : ''}</div>
     </div>
   </section>`;
 }
 function bindAlertsCard(AL) {
   const tgBody = () => ({tg_token: $('#alToken').value.trim() || null, tg_chat: $('#alChat').value.trim() || null});
   const save = async (body, msg) => { try { await api('/api/admin/alerts', {json: body}); toast(msg); refreshMe(); renderSettings(); } catch (e) { toast(e.message, 5000); } };
-  $('#alEnabled').onchange = e => save({enabled: e.target.value === '1'}, e.target.value === '1' ? 'Avisos encendidos' : 'Avisos apagados');
-  $('#alWarn').onchange = e => save({warn: +e.target.value}, 'Casi lleno: ' + e.target.value + ' %');
-  $('#alCrit').onchange = e => save({crit: +e.target.value}, 'Lleno: ' + e.target.value + ' %');
+  $('#alEnabled').onchange = e => save({enabled: e.target.value === '1'}, t(t(e.target.value === '1' ? 'Avisos encendidos' : 'Avisos apagados')));
+  $('#alWarn').onchange = e => save({warn: +e.target.value}, t('Casi lleno: {pct} %', {pct: e.target.value}));
+  $('#alCrit').onchange = e => save({crit: +e.target.value}, t('Lleno: {pct} %', {pct: e.target.value}));
   $('#alFind').onclick = async () => {
     try {
       const r = await api('/api/admin/alerts/chats', {json: tgBody()});
-      if (!r.chats.length) return toast('No encuentro ningún chat. Abre tu bot en Telegram, pulsa Iniciar, escríbele «hola» y vuelve a probar', 7000);
-      $('#alChat').value = r.chats[0].id; toast('Chat encontrado: ' + r.chats[0].name);
+      if (!r.chats.length) return toast(t('No encuentro ningún chat. Abre tu bot en Telegram, pulsa Iniciar, escríbele «hola» y vuelve a probar'), 7000);
+      $('#alChat').value = r.chats[0].id; toast(t('Chat encontrado: {name}', {name: r.chats[0].name}));
     } catch (e) { toast(e.message, 6000); }
   };
-  $('#alTest').onclick = async () => { try { await api('/api/admin/alerts/test', {json: tgBody()}); toast('Mensaje enviado. Míralo en Telegram', 5000); } catch (e) { toast(e.message, 6000); } };
+  $('#alTest').onclick = async () => { try { await api('/api/admin/alerts/test', {json: tgBody()}); toast(t('Mensaje enviado. Míralo en Telegram'), 5000); } catch (e) { toast(e.message, 6000); } };
   $('#alSave').onclick = () => {
-    const b = tgBody(); if (!b.tg_token && !AL.telegram.token_set) return toast('Pega primero el token de tu bot');
-    save({tg_token: b.tg_token, tg_chat: $('#alChat').value.trim()}, 'Telegram guardado');
+    const b = tgBody(); if (!b.tg_token && !AL.telegram.token_set) return toast(t('Pega primero el token de tu bot'));
+    save({tg_token: b.tg_token, tg_chat: $('#alChat').value.trim()}, t(t('Telegram guardado')));
   };
-  $('#alClear') && ($('#alClear').onclick = async () => { if (await confirmDialog('Quitar Telegram', 'Dejarán de llegarte los avisos por Telegram. En la web y en la app seguirán saliendo.', 'Quitar')) save({tg_clear: true}, 'Telegram quitado'); });
+  $('#alClear') && ($('#alClear').onclick = async () => { if (await confirmDialog(t('Quitar Telegram'), t('Dejarán de llegarte los avisos por Telegram. En la web y en la app seguirán saliendo.'), t('Quitar'))) save({tg_clear: true}, t('Telegram quitado')); });
 }
 async function refreshMe() { try { const m = await api('/api/me'); S.me.disk_alert = m.disk_alert; paintDiskAlert(m.disk_alert); } catch (e) {} }
 
@@ -1271,12 +1288,12 @@ const HOMES = {panel: ['chart', 'Panel de actividad', 'Gráficos de espacio, sub
 function homeView() { try { const h = localStorage.getItem('dp-home'); return HOMES[h] ? h : 'panel'; } catch (e) { return 'panel'; } }
 async function homeDialog() {
   const cur = homeView();
-  const p = dialog(`<h3>Pantalla de inicio</h3><p>Lo que se abre al entrar en DrivePanel desde este navegador.</p><div class="choice-list">` +
-    Object.entries(HOMES).map(([k, [icon, name, sub]]) => `<button class="btn${k === cur ? ' primary' : ''}" data-home="${k}">${ic(icon)}<span><b>${name}</b><br><small>${sub}</small></span></button>`).join('') +
-    `</div><div class="actions"><button class="btn" data-close>Cerrar</button></div>`);
+  const p = dialog(`<h3>${t('Pantalla de inicio')}</h3><p>${t('Lo que se abre al entrar en DrivePanel desde este navegador.')}</p><div class="choice-list">` +
+    Object.entries(HOMES).map(([k, [icon, name, sub]]) => `<button class="btn${k === cur ? ' primary' : ''}" data-home="${k}">${ic(icon)}<span><b>${t(name)}</b><br><small>${t(sub)}</small></span></button>`).join('') +
+    `</div><div class="actions"><button class="btn" data-close>${t('Cerrar')}</button></div>`);
   $('#dialogBox').querySelectorAll('[data-home]').forEach(b => b.onclick = () => {
     try { localStorage.setItem('dp-home', b.dataset.home); } catch (e) {}
-    closeDialog(); toast('Al entrar se abrirá: ' + HOMES[b.dataset.home][1]);
+    closeDialog(); toast(t('Al entrar se abrirá: {what}', {what: t(HOMES[b.dataset.home][1])}));
   });
   return p;
 }
@@ -1287,15 +1304,16 @@ const KIND_NAME = {folder:'Carpetas', image:'Imágenes', video:'Vídeos', audio:
   sheet:'Hojas de cálculo', slides:'Presentaciones', text:'Texto y código', file:'Otros'};
 const KIND_ONE = {image:'Imagen', video:'Vídeo', audio:'Audio', pdf:'Documento PDF', archive:'Archivo comprimido', doc:'Documento',
   sheet:'Hoja de cálculo', slides:'Presentación', text:'Texto o código', file:'Archivo'};
+const kindName = k => KIND_NAME[k] ? t(KIND_NAME[k]) : k;
 const ACT = {upload:['cloudUp','Subido'], mkdir:['folderAdd','Carpeta creada'], rename:['edit','Nombre cambiado'], move:['move','Movido'],
   delete:['trash','Enviado a la papelera'], restore:['restore','Restaurado'], purge:['forever','Borrado para siempre'], share:['share','Compartido']};
-const fmtNum = n => (n || 0).toLocaleString('es-ES');
-function ago(t) {
-  const s = Date.now() / 1000 - t;
-  if (s < 60) return 'ahora'; if (s < 3600) return 'hace ' + Math.floor(s / 60) + ' min';
-  if (s < 86400) return 'hace ' + Math.floor(s / 3600) + ' h';
-  if (s < 7 * 86400) { const d = Math.floor(s / 86400); return d === 1 ? 'ayer' : 'hace ' + d + ' días'; }
-  return new Date(t * 1000).toLocaleDateString('es-ES', {day: 'numeric', month: 'short'});
+const fmtNum = n => (n || 0).toLocaleString(LOCALE);
+function ago(at) {
+  const s = Date.now() / 1000 - at;
+  if (s < 60) return t('ahora'); if (s < 3600) return t('hace {n} min', {n: Math.floor(s / 60)});
+  if (s < 86400) return t('hace {n} h', {n: Math.floor(s / 3600)});
+  if (s < 7 * 86400) { const d = Math.floor(s / 86400); return d === 1 ? t('ayer') : t('hace {n} días', {n: d}); }
+  return new Date(at * 1000).toLocaleDateString(LOCALE, {day: 'numeric', month: 'short'});
 }
 function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
 let panelMode = (() => { try { return localStorage.getItem('dp-panel-mode') || 'count'; } catch (e) { return 'count'; } })();
@@ -1304,7 +1322,7 @@ let panelData = null;
 async function renderPanel() {
   crumbs(); $('#emptyTrash').classList.add('hidden'); updateSel();
   const c = $('#content');
-  if (!panelData) c.innerHTML = `<div class="empty">Calculando…</div>`;
+  if (!panelData) c.innerHTML = `<div class="empty">${t('Calculando…')}</div>`;
   let d;
   try { d = await api('/api/dashboard'); } catch (e) { c.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   if (S.view !== 'panel') return;
@@ -1313,23 +1331,23 @@ async function renderPanel() {
   const up30 = d.uploads.reduce((a, x) => a + x.size, 0), upN = d.uploads.reduce((a, x) => a + x.count, 0);
   const kpi = (icon, v, l) => `<div class="card kpi c3"><div class="k-ic">${ic(icon)}</div><div><div class="k-v">${v}</div><div class="k-l">${l}</div></div></div>`;
   c.innerHTML = `<div class="dash">
-    ${kpi('file', fmtNum(d.files), `archivos en ${fmtNum(d.folders)} carpetas`)}
-    ${kpi('storage', fmtSize(d.used), d.quota ? `usados de ${fmtSize(d.quota)} (${Math.round(d.used / d.quota * 100)} %)` : 'usados (sin límite)')}
-    ${kpi('cloudUp', fmtSize(up30), `subidos en 30 días (${fmtNum(upN)} archivos)`)}
-    ${kpi('trash', fmtSize(d.trash.size), `en la papelera · ${fmtNum(d.shares)} ${d.shares === 1 ? "compartido" : "compartidos"}`)}
+    ${kpi('file', fmtNum(d.files), t('archivos en {n} carpetas', {n: fmtNum(d.folders)}))}
+    ${kpi('storage', fmtSize(d.used), d.quota ? t('usados de {size} ({pct} %)', {size: fmtSize(d.quota), pct: Math.round(d.used / d.quota * 100)}) : t('usados (sin límite)'))}
+    ${kpi('cloudUp', fmtSize(up30), t('subidos en 30 días ({n} archivos)', {n: fmtNum(upN)}))}
+    ${kpi('trash', fmtSize(d.trash.size), t('en la papelera') + ' · ' + t(d.shares === 1 ? '{n} compartido' : '{n} compartidos', {n: fmtNum(d.shares)}))}
 
-    <div class="card c8"><div class="card-head"><div><h4>Archivos subidos por día</h4><div class="sub">Últimos 30 días</div></div>
-      <div class="seg" id="upMode"><button data-m="count">Archivos</button><button data-m="size">Tamaño</button></div></div>
+    <div class="card c8"><div class="card-head"><div><h4>${t('Archivos subidos por día')}</h4><div class="sub">${t('Últimos 30 días')}</div></div>
+      <div class="seg" id="upMode"><button data-m="count">${t('Archivos')}</button><button data-m="size">${t('Tamaño')}</button></div></div>
       <div id="upChart"></div></div>
-    <div class="card c4"><h4>Uso del disco</h4><div class="sub">${fmtSize(d.disk.total)} en total · ${fmtSize(d.disk.free)} libres</div>${spaceDonut(d)}</div>
+    <div class="card c4"><h4>${t('Uso del disco')}</h4><div class="sub">${t('{total} en total · {free} libres', {total: fmtSize(d.disk.total), free: fmtSize(d.disk.free)})}</div>${spaceDonut(d)}</div>
 
-    <div class="card c6"><h4>Tipos de archivo</h4><div class="sub">Cuánto ocupa cada tipo</div>${kindBars(d.kinds)}</div>
-    <div class="card c6"><h4>Estado de la Raspberry Pi</h4><div class="sub">En directo, se actualiza cada 5 segundos</div><div id="liveBox"></div></div>
+    <div class="card c6"><h4>${t('Tipos de archivo')}</h4><div class="sub">${t('Cuánto ocupa cada tipo')}</div>${kindBars(d.kinds)}</div>
+    <div class="card c6"><h4>${t('Estado de la Raspberry Pi')}</h4><div class="sub">${t('En directo, se actualiza cada 5 segundos')}</div><div id="liveBox"></div></div>
 
-    <div class="card c7"><h4>Actividad reciente</h4><div class="sub">Lo último que has hecho</div>${actionChips(d.actions)}${feedHtml(d.recent)}</div>
-    <div class="card c5"><h4>Archivos más grandes</h4><div class="sub">Los que más espacio ocupan</div>${largestHtml(d.largest)}</div>
-    ${d.users ? `<div class="card c12"><h4>Espacio por usuario</h4><div class="sub">Solo lo ven los administradores</div>${usersBars(d.users)}</div>` : ''}
-  </div><div class="dash-foot">Actualizado ${new Date().toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}</div>`;
+    <div class="card c7"><h4>${t('Actividad reciente')}</h4><div class="sub">${t('Lo último que has hecho')}</div>${actionChips(d.actions)}${feedHtml(d.recent)}</div>
+    <div class="card c5"><h4>${t('Archivos más grandes')}</h4><div class="sub">${t('Los que más espacio ocupan')}</div>${largestHtml(d.largest)}</div>
+    ${d.users ? `<div class="card c12"><h4>${t('Espacio por usuario')}</h4><div class="sub">${t('Solo lo ven los administradores')}</div>${usersBars(d.users)}</div>` : ''}
+  </div><div class="dash-foot">${t('Actualizado {time}', {time: new Date().toLocaleTimeString(LOCALE, {hour: '2-digit', minute: '2-digit'})})}</div>`;
   paintUploads(); paintLive();
   $('#upMode').onclick = e => { const m = e.target.closest('[data-m]')?.dataset.m; if (!m) return; panelMode = m; try { localStorage.setItem('dp-panel-mode', m); } catch (er) {} paintUploads(); };
   c.querySelectorAll('[data-open]').forEach(el => el.onclick = () => { const p = el.dataset.open; go('drive', p.split('/').slice(0, -1).join('/')); });
@@ -1341,24 +1359,24 @@ function paintUploads() {
   const key = panelMode, vals = d.uploads.map(x => x[key]), max = niceMax(Math.max(...vals));
   const lab = v => key === 'size' ? fmtSize(v).replace(/,0 /, ' ') : fmtNum(v);
   const grid = [0.5, 1].map(f => `<div class="gl" style="bottom:${f * 100}%"><span>${lab(max * f)}</span></div>`).join('') + `<div class="gl" style="bottom:0;border:0"><span>0</span></div>`;
-  const day = s => new Date(s + 'T12:00:00').toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'});
-  const bars = d.uploads.map(x => `<div class="b ${x[key] ? '' : 'zero'}" data-tip="<div class='tt'>${esc(day(x.day))}</div><b>${fmtNum(x.count)}</b> archivos · <b>${fmtSize(x.size)}</b>"><div style="height:${x[key] / max * 100}%"></div></div>`).join('');
-  const sh = s => new Date(s + 'T12:00:00').toLocaleDateString('es-ES', {day: 'numeric', month: 'short'});
+  const day = s => new Date(s + 'T12:00:00').toLocaleDateString(LOCALE, {weekday: 'short', day: 'numeric', month: 'short'});
+  const bars = d.uploads.map(x => `<div class="b ${x[key] ? '' : 'zero'}" data-tip="<div class='tt'>${esc(day(x.day))}</div><b>${fmtNum(x.count)}</b> ${t('archivos')} · <b>${fmtSize(x.size)}</b>"><div style="height:${x[key] / max * 100}%"></div></div>`).join('');
+  const sh = s => new Date(s + 'T12:00:00').toLocaleDateString(LOCALE, {day: 'numeric', month: 'short'});
   const u = d.uploads;
-  box.innerHTML = `<div class="vbars">${grid}${bars}</div><div class="xlab"><span>${sh(u[0].day)}</span><span>${sh(u[Math.floor(u.length / 2)].day)}</span><span>Hoy</span></div>` +
-    (vals.some(Boolean) ? '' : `<div class="dash-empty">No has subido nada en los últimos 30 días.</div>`);
+  box.innerHTML = `<div class="vbars">${grid}${bars}</div><div class="xlab"><span>${sh(u[0].day)}</span><span>${sh(u[Math.floor(u.length / 2)].day)}</span><span>${t('Hoy')}</span></div>` +
+    (vals.some(Boolean) ? '' : `<div class="dash-empty">${t('No has subido nada en los últimos 30 días.')}</div>`);
 }
 
 function spaceDonut(d) {
   const tot = (d.disk.used + d.disk.free) || 1, mine = Math.min(d.used, d.disk.used), other = Math.max(0, d.disk.used - mine);
-  const segs = [['Mis archivos', mine, 'var(--s1)'], ['Otros datos del disco', other, 'var(--s2)'], ['Libre', d.disk.free, 'var(--free)']];
+  const segs = [[t('Mis archivos'), mine, 'var(--s1)'], [t('Otros datos del disco'), other, 'var(--s2)'], [t('Libre'), d.disk.free, 'var(--free)']];
   const R = 60, C = 2 * Math.PI * R, gap = 2;
   let off = 0;
   const arcs = segs.map(([n, v, col]) => {
     const len = v / tot * C; const a = `<circle r="${R}" cx="75" cy="75" stroke="${col}" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}"><title>${n}: ${fmtSize(v)}</title></circle>`;
     off += len; return len > 0 ? a : '';
   }).join('');
-  return `<div class="donut-row"><div class="donut"><svg viewBox="0 0 150 150">${arcs}</svg><div class="mid"><b>${Math.round(d.disk.used / tot * 100)} %</b><span>ocupado</span></div></div>
+  return `<div class="donut-row"><div class="donut"><svg viewBox="0 0 150 150">${arcs}</svg><div class="mid"><b>${Math.round(d.disk.used / tot * 100)} %</b><span>${t('ocupado')}</span></div></div>
     <div class="legend">${segs.map(([n, v, col]) => `<div><i class="sw" style="background:${col}"></i>${n}<b>${fmtSize(v)}</b></div>`).join('')}</div></div>`;
 }
 
@@ -1367,29 +1385,29 @@ function hbars(rows) {
   return `<div class="hbars">${rows.map(r => `<div class="hb" data-tip="${esc(r.tip)}"><div class="l">${r.icon}<span>${esc(r.label)}</span></div><div class="track"><div style="width:${r.v / max * 100}%"></div></div><div class="v">${r.vl}</div></div>`).join('')}</div>`;
 }
 function kindBars(kinds) {
-  if (!kinds.length) return `<div class="dash-empty">Todavía no hay archivos.</div>`;
+  if (!kinds.length) return `<div class="dash-empty">${t('Todavía no hay archivos.')}</div>`;
   const top = kinds.slice(0, 7), rest = kinds.slice(7);
   if (rest.length) top.push({kind: 'file', count: rest.reduce((a, k) => a + k.count, 0), size: rest.reduce((a, k) => a + k.size, 0), other: true});
-  return hbars(top.map(k => ({label: k.other ? 'Resto' : KIND_NAME[k.kind] || k.kind, icon: ic(k.kind, 'ic-' + k.kind), v: k.size, vl: fmtSize(k.size),
-    tip: `<div class='tt'>${KIND_NAME[k.kind] || k.kind}</div><b>${fmtNum(k.count)}</b> archivos · <b>${fmtSize(k.size)}</b>`})));
+  return hbars(top.map(k => ({label: k.other ? t('Resto') : kindName(k.kind), icon: ic(k.kind, 'ic-' + k.kind), v: k.size, vl: fmtSize(k.size),
+    tip: `<div class='tt'>${kindName(k.kind)}</div><b>${fmtNum(k.count)}</b> ${t('archivos')} · <b>${fmtSize(k.size)}</b>`})));
 }
 function usersBars(users) {
   return hbars(users.map(u => ({label: u.username, icon: avatarHtml(u.username, u.avatar, 'sm'), v: u.used, vl: fmtSize(u.used),
-    tip: `<div class='tt'>${esc(u.username)}</div><b>${fmtSize(u.used)}</b>${u.quota ? ' de ' + fmtSize(u.quota) : ' (sin límite)'}`})));
+    tip: `<div class='tt'>${esc(u.username)}</div><b>${fmtSize(u.used)}</b>${u.quota ? ' ' + t('de') + ' ' + fmtSize(u.quota) : ' ' + t('(sin límite)')}`})));
 }
 function actionChips(a) {
   const ks = Object.keys(ACT).filter(k => a[k]);
   if (!ks.length) return '';
-  return `<div class="chips">${ks.map(k => `<span class="chip">${ACT[k][1]}: <b>${fmtNum(a[k])}</b></span>`).join('')}<span class="chip">en 30 días</span></div>`;
+  return `<div class="chips">${ks.map(k => `<span class="chip">${t(ACT[k][1])}: <b>${fmtNum(a[k])}</b></span>`).join('')}<span class="chip">${t('en 30 días')}</span></div>`;
 }
 function feedHtml(rows) {
-  if (!rows.length) return `<div class="dash-empty">Aún no hay actividad. Aquí verás lo que vayas subiendo, moviendo o borrando.</div>`;
+  if (!rows.length) return `<div class="dash-empty">${t('Aún no hay actividad. Aquí verás lo que vayas subiendo, moviendo o borrando.')}</div>`;
   return `<div class="feed">${rows.map(r => { const [icon, label] = ACT[r.action] || ['file', r.action]; const name = r.path.split('/').pop();
-    return `<div class="f" title="${esc(r.path)}"><div class="a-ic">${ic(icon, r.action === 'upload' ? 'ic-' + r.kind : '')}</div><div class="t"><div>${esc(name || '/')}</div><small>${label}${r.size ? ' · ' + fmtSize(r.size) : ''}</small></div><div class="when">${ago(r.at)}</div></div>`; }).join('')}</div>`;
+    return `<div class="f" title="${esc(r.path)}"><div class="a-ic">${ic(icon, r.action === 'upload' ? 'ic-' + r.kind : '')}</div><div class="t"><div>${esc(name || '/')}</div><small>${t(label)}${r.size ? ' · ' + fmtSize(r.size) : ''}</small></div><div class="when">${ago(r.at)}</div></div>`; }).join('')}</div>`;
 }
 function largestHtml(rows) {
-  if (!rows.length) return `<div class="dash-empty">Todavía no hay archivos.</div>`;
-  return `<div class="feed">${rows.map(r => `<div class="f" data-open="${esc(r.path)}" style="cursor:pointer" title="Abrir su carpeta: ${esc(r.path)}"><div class="a-ic">${ic(r.kind, 'ic-' + r.kind)}</div><div class="t"><div>${esc(r.name)}</div><small>${esc('/' + r.path.split('/').slice(0, -1).join('/'))}</small></div><div class="when"><b>${fmtSize(r.size)}</b></div></div>`).join('')}</div>`;
+  if (!rows.length) return `<div class="dash-empty">${t('Todavía no hay archivos.')}</div>`;
+  return `<div class="feed">${rows.map(r => `<div class="f" data-open="${esc(r.path)}" style="cursor:pointer" title="${t('Abrir su carpeta: {path}', {path: esc(r.path)})}"><div class="a-ic">${ic(r.kind, 'ic-' + r.kind)}</div><div class="t"><div>${esc(r.name)}</div><small>${esc('/' + r.path.split('/').slice(0, -1).join('/'))}</small></div><div class="when"><b>${fmtSize(r.size)}</b></div></div>`).join('')}</div>`;
 }
 
 function paintLive() {
@@ -1404,14 +1422,14 @@ function paintLive() {
   box.innerHTML = `<div class="live" id="liveChart">${grid}<svg viewBox="0 0 100 100" preserveAspectRatio="none">${line('cpu', 'var(--s1)')}${line('mem', 'var(--s2)')}</svg><div class="cross hidden"></div></div>
     <div class="live-legend"><span><i class="ln" style="background:var(--s1)"></i>CPU <b>${last.cpu != null ? Math.round(last.cpu) + ' %' : '—'}</b></span>
     <span><i class="ln" style="background:var(--s2)"></i>RAM <b>${last.mem != null ? Math.round(last.mem) + ' %' : '—'}</b></span>
-    ${last.temp != null ? `<span>Temperatura <b>${last.temp.toFixed(1).replace('.', ',')} °C</b></span>` : ''}
-    ${pts.length < 3 ? '<span>Recogiendo datos…</span>' : ''}</div>`;
+    ${last.temp != null ? `<span>${t('Temperatura')} <b>${dec(last.temp.toFixed(1))} °C</b></span>` : ''}
+    ${pts.length < 3 ? `<span>${t('Recogiendo datos…')}</span>` : ''}</div>`;
   const ch = $('#liveChart'), cross = ch.querySelector('.cross');
   ch.onmousemove = e => {
     const r = ch.getBoundingClientRect(), f = (e.clientX - r.left) / r.width, i = Math.round(f * (n - 1)) - (n - pts.length);
     const x = pts[i]; if (!x) { cross.classList.add('hidden'); hideTip(); return; }
     cross.classList.remove('hidden'); cross.style.left = ((n - pts.length + i) / (n - 1) * 100) + '%';
-    showTip(`<div class='tt'>${new Date(x.t).toLocaleTimeString('es-ES')}</div>CPU <b>${x.cpu != null ? Math.round(x.cpu) + ' %' : '—'}</b> · RAM <b>${x.mem != null ? Math.round(x.mem) + ' %' : '—'}</b>${x.temp != null ? ` · <b>${x.temp.toFixed(1).replace('.', ',')} °C</b>` : ''}`, e);
+    showTip(`<div class='tt'>${new Date(x.t).toLocaleTimeString(LOCALE)}</div>CPU <b>${x.cpu != null ? Math.round(x.cpu) + ' %' : '—'}</b> · RAM <b>${x.mem != null ? Math.round(x.mem) + ' %' : '—'}</b>${x.temp != null ? ` · <b>${dec(x.temp.toFixed(1))} °C</b>` : ''}`, e);
   };
   ch.onmouseleave = () => { cross.classList.add('hidden'); hideTip(); };
 }
@@ -1432,31 +1450,32 @@ document.addEventListener('touchstart', e => { const t = e.target.closest?.('[da
 async function propsDialog(items) {
   if (!items.length) return;
   const one = items.length === 1 ? items[0] : null;
-  const title = one ? esc(one.name) : items.length + ' elementos';
+  const title = one ? esc(one.name) : t('{n} elementos', {n: items.length});
   const icon = one ? ic(one.dir ? 'folder' : one.kind, 'ic-' + (one.dir ? 'folder' : one.kind)) : ic('file', 'ic-file');
-  const p = dialog(`<div class="props"><div class="props-head">${icon}<b>${title}</b></div><div id="propsBody"><div class="calc">Calculando el tamaño…</div></div>
-    <div class="actions"><button class="btn primary" data-close>Cerrar</button></div></div>`);
+  const p = dialog(`<div class="props"><div class="props-head">${icon}<b>${title}</b></div><div id="propsBody"><div class="calc">${t('Calculando el tamaño…')}</div></div>
+    <div class="actions"><button class="btn primary" data-close>${t('Cerrar')}</button></div></div>`);
   let q;
   if (S.view === 'shared' && !S.share) q = one ? `paths=&share=${one.share_id}` : null;
   else q = items.map(i => 'paths=' + enc(i.path)).join('&') + shareQ();
-  if (!q) { $('#propsBody').innerHTML = '<p>Elige un solo elemento.</p>'; return p; }
+  if (!q) { $('#propsBody').innerHTML = `<p>${t('Elige un solo elemento.')}</p>`; return p; }
   try {
     const r = await api('/api/props?' + q);
     const body = $('#propsBody'); if (!body) return p;
     const rows = [];
-    if (one) rows.push(['Tipo', r.dir ? 'Carpeta' : KIND_ONE[r.kind] || 'Archivo']);
-    if (one && r.location != null) rows.push(['Ubicación', esc(r.location)]);
-    rows.push(['Tamaño', `<b>${fmtSize(r.size)}</b> <span class="c-m">(${fmtNum(r.size)} bytes)</span>`]);
-    if (!one || r.dir) rows.push(['Contiene', `${fmtNum(r.files)} archivos, ${fmtNum(r.folders)} carpetas`]);
-    if (one) rows.push(['Modificado', fmtDate(r.mtime)], ['Añadido', fmtDate(r.ctime)]);
+    if (one) rows.push([t('Tipo'), t(r.dir ? 'Carpeta' : KIND_ONE[r.kind] || 'Archivo')]);
+    if (one && r.location != null) rows.push([t('Ubicación'), esc(r.location ? r.location : t('Mi unidad'))]);
+    rows.push([t('Tamaño'), `<b>${fmtSize(r.size)}</b> <span class="c-m">(${fmtNum(r.size)} bytes)</span>`]);
+    if (!one || r.dir) rows.push([t('Contiene'), t('{files} archivos, {folders} carpetas', {files: fmtNum(r.files), folders: fmtNum(r.folders)})]);
+    if (one) rows.push([t('Modificado'), fmtDate(r.mtime)], [t('Añadido'), fmtDate(r.ctime)]);
     let kinds = '';
     if ((!one || r.dir) && r.kinds.length) {
-      kinds = `<label>Qué hay dentro</label>` + hbars(r.kinds.slice(0, 6).map(k => ({label: KIND_NAME[k.kind] || k.kind, icon: ic(k.kind, 'ic-' + k.kind), v: k.size, vl: fmtSize(k.size),
-        tip: `<div class='tt'>${KIND_NAME[k.kind] || k.kind}</div><b>${fmtNum(k.count)}</b> archivos · <b>${fmtSize(k.size)}</b>`})));
+      kinds = `<label>${t('Qué hay dentro')}</label>` + hbars(r.kinds.slice(0, 6).map(k => ({label: kindName(k.kind), icon: ic(k.kind, 'ic-' + k.kind), v: k.size, vl: fmtSize(k.size),
+        tip: `<div class='tt'>${kindName(k.kind)}</div><b>${fmtNum(k.count)}</b> ${t('archivos')} · <b>${fmtSize(k.size)}</b>`})));
     }
     body.innerHTML = `<dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>${kinds}`;
   } catch (e) { const b = $('#propsBody'); if (b) b.innerHTML = `<p>${esc(e.message)}</p>`; }
   return p;
 }
 
-paintIcons(); paintTheme(); start(); restoreFailed();
+// se arranca cuando ya esta cargado el idioma (i18n.js)
+I18N_READY.then(() => { paintIcons(); paintTheme(); start(); restoreFailed(); });

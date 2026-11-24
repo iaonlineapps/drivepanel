@@ -109,6 +109,8 @@ def init():
     cols = {r["name"] for r in q("PRAGMA table_info(shares)")}
     if "expires" not in cols:
         run("ALTER TABLE shares ADD COLUMN expires REAL")
+    if "lang" not in {r["name"] for r in q("PRAGMA table_info(users)")}:
+        run("ALTER TABLE users ADD COLUMN lang TEXT")  # idioma elegido (es, en...); vacio = el del navegador
     run("DELETE FROM sessions WHERE expires<?", time.time())
     run("DELETE FROM activity WHERE at<?", time.time() - 180 * 86400)  # se guarda medio ano
     if ADMIN_USER and ADMIN_PASSWORD and not q1("SELECT id FROM users WHERE username=?", ADMIN_USER):

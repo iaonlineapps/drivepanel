@@ -3,7 +3,7 @@
 ![DrivePanel: tu propio Google Drive en casa](docs/promo/drivepanel-enlace-1200x630.png)
 
 Tu propio "Google Drive" en casa, pensado para una Raspberry Pi (funciona en cualquier
-Linux con Docker). Ligero (unos 40 MB de RAM), en español, con modo claro/oscuro y
+Linux con Docker). Ligero (unos 40 MB de RAM), en español y en inglés, con modo claro/oscuro y
 WebDAV para que el móvil suba las fotos solo.
 
 > **Idiomas / Languages:** ahora DrivePanel está en español. **El inglés llegará muy pronto**,
@@ -29,6 +29,55 @@ WebDAV para que el móvil suba las fotos solo.
 - Se puede **instalar en el móvil** como app (desde el navegador o con la **APK para Android**), y tiene modo claro y oscuro.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
+
+<details>
+<summary><b>🇬🇧 English</b></summary>
+
+### DrivePanel in English
+
+Your own "Google Drive" at home, built for a Raspberry Pi (it works on any Linux machine
+with Docker). Lightweight (about 40 MB of RAM), with light/dark mode and WebDAV so your
+phone can upload photos on its own.
+
+**Languages:** the app is available in **Spanish and English** (more may come). It opens in
+your browser's language, and each user can change it in **Settings → Your preferences →
+Language** (it is saved in the account, so it is the same on every device). Error
+messages and public share pages also follow the language.
+
+**What's included:** My Drive with folders, thumbnails, search, rename, move and
+Properties · uploads of files and whole folders in chunks with retries, duplicate
+warnings and live speed · activity dashboard (uploads per day, disk usage, file types,
+live Raspberry Pi status) · Photos by month or by album · Recent, viewer for photos,
+video, audio, PDF and text, .zip download · Trash · sharing with another user or with a
+public link that can expire · users with admin approval and quotas · WebDAV at `/dav/` ·
+installable on the phone (from the browser or with the Android APK).
+
+**Install:**
+
+```bash
+git clone https://github.com/pctecnikk/drivepanel.git
+cd drivepanel
+./install.sh       # the first time it only creates the .env file
+nano .env          # set DATA_DIR to a folder on your disk, e.g. /mnt/disk/drivepanel
+./install.sh       # now it installs and starts
+```
+
+Open **http://YOUR-PI-IP:8090** and press **Sign up**. **The first user to sign up is the
+administrator.** Later sign-ups stay *pending* until the admin approves them in **Users**.
+You can also set `ADMIN_USER` and `ADMIN_PASSWORD` in `.env` to create the admin at start.
+
+**Main `.env` settings:** `DATA_DIR` (where everything is stored), `PORT` (default 8090),
+`TZ`, `PUID`/`PGID`, `DEFAULT_QUOTA_GB` (0 = no limit), `ADMIN_USER`/`ADMIN_PASSWORD`,
+`ALLOW_REGISTER` (`0` = only the admin creates accounts).
+
+**Update:** `cd drivepanel && git pull && docker compose up -d --build`. Your files and users
+are kept in `DATA_DIR`.
+
+**Adding a language:** copy `app/static/i18n/en.json` to `<code>.json`, translate the
+values (the keys are the Spanish texts) and add the code to `LANGS` in
+`app/static/i18n.js` and `app/i18n.py`.
+
+</details>
 
 ![Mi unidad](docs/capturas/mi-unidad.png)
 

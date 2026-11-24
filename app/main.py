@@ -6,9 +6,12 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Request, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exception_handlers import http_exception_handler
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import alerts, db, limits, ops, settings
+from .i18n import tr, lang_of, norm as norm_lang
 from .version import VERSION
 from .config import STORAGE, TRASH, TMP, CONFIG, ARCHIVE, ALLOW_REGISTER
 from .fsutil import (user_root, trash_root, safe_path, valid_name, unique_path, entry,
@@ -28,6 +31,14 @@ COOKIE = "dp_session"
 # sin punto al principio: las carpetas que empiezan por "." estan ocultas
 USER_RE = re.compile(r"^[a-zA-Z0-9_-][a-zA-Z0-9_.-]{2,31}$")
 MAX_PENDING = 20  # cuentas pendientes de aprobar como mucho (evita que llenen la lista)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _translated_errors(request: Request, exc: StarletteHTTPException):
+    # los mensajes de error se escriben en español; aqui se traducen al idioma de quien pregunta
+    if isinstance(exc.detail, str) and not request.url.path.startswith("/dav"):
+        exc.detail = tr(exc.detail, lang_of(request))
+    return await http_exception_handler(request, exc)
 
 
 def client_ip(request: Request) -> str:
@@ -142,9 +153,11 @@ def register(c: Creds, request: Request):
     db.run("INSERT INTO users(username,pw_hash,is_admin,status,quota,created) VALUES(?,?,?,?,?,?)",
            name, db.hash_pw(c.password), 1 if first else 0,
            "approved" if first else "pending", 0 if first else db.default_quota(), time.time())
+    lang = lang_of(request)
+    db.run("UPDATE users SET lang=? WHERE username=?", lang, name)
     if first:
-        return {"ok": True, "msg": "Cuenta de administrador creada. Ya puedes entrar."}
-    return {"ok": True, "msg": "Cuenta creada. Un administrador tiene que aprobarla antes de entrar."}
+        return {"ok": True, "admin": True, "msg": tr("Cuenta de administrador creada. Ya puedes entrar.", lang)}
+    return {"ok": True, "admin": False, "msg": tr("Cuenta creada. Un administrador tiene que aprobarla antes de entrar.", lang)}
 
 
 @app.post("/api/login")
@@ -200,7 +213,24 @@ def me(u=Depends(current_user)):
     pending = db.q1("SELECT COUNT(*) n FROM users WHERE status='pending'")["n"] if u["is_admin"] else 0
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "quota": u["quota"],
             "used": usage(u["username"]), "pending": pending, "avatar": avatar_version(u["id"]), "version": VERSION,
-            "disk_alert": alerts.for_user(u), **settings.public()}
+            "disk_alert": alerts.for_user(u),
+            "lang": u["lang"] if "lang" in u.keys() else None, **settings.public()}
+
+
+class LangUpd(BaseModel):
+    lang: str
+
+
+@app.post("/api/me/lang")
+def me_lang(b: LangUpd, u=Depends(current_user)):
+    """Idioma elegido en Ajustes: se guarda en la cuenta, asi sale igual en todos sus dispositivos."""
+    lang = norm_lang(b.lang)
+    if not lang:
+        raise HTTPException(400, "Idioma no valido")
+    db.run("UPDATE users SET lang=? WHERE id=?", lang, u["id"])
+    r = JSONResponse({"ok": True, "lang": lang})
+    r.set_cookie("dp_lang", lang, max_age=365 * 86400, samesite="lax")
+    return r
 
 
 class SettingsUpd(BaseModel):
@@ -1048,13 +1078,13 @@ def _wants_choice(request: Request) -> bool:
             and "text/html" in request.headers.get("accept", ""))
 
 
-def _choice_page(url: str, name: str, size: str) -> HTMLResponse:
+def _choice_page(url: str, name: str, size: str, lang: str = "es") -> HTMLResponse:
     from html import escape
     from urllib.parse import quote as q
     app = (f"intent://open?url={q(url, safe='')}&name={q(name, safe='')}#Intent;scheme=drivepanel;"
            f"package={_APP_PKG};S.browser_fallback_url={q(_APP_RELEASES, safe='')};end")
     here = url + ("&" if "?" in url else "?") + "dl=1"
-    return HTMLResponse(f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
+    return HTMLResponse(f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(name)} · DrivePanel</title>
 <style>body{{font-family:system-ui,sans-serif;margin:0;background:#f8fafd;color:#1f1f1f;display:flex;min-height:100vh;align-items:center;justify-content:center}}
 .c{{background:#fff;border-radius:18px;padding:28px 22px;max-width:380px;width:calc(100% - 32px);box-shadow:0 2px 10px #0002;text-align:center}}
@@ -1063,9 +1093,9 @@ a.b{{display:block;padding:15px;border-radius:12px;text-decoration:none;font-wei
 .p{{background:#1a73e8;color:#fff}}.s{{background:#e8f0fe;color:#1a73e8}}small{{display:block;color:#5f6368;margin-top:18px}}
 @media(prefers-color-scheme:dark){{body{{background:#1f1f1f;color:#e3e3e3}}.c{{background:#2d2f31}}.s{{background:#394457;color:#a8c7fa}}p,small{{color:#a8abaf}}}}</style></head>
 <body><div class="c"><div style="font-size:42px">{'📁' if name.endswith('.zip') else '📄'}</div><h1>{escape(name)}</h1><p>{escape(size)}</p>
-<a class="b p" href="{escape(app)}">Abrir en la app DrivePanel</a>
-<a class="b s" href="{escape(here)}">Descargar aquí (navegador)</a>
-<small>Si no tienes la app, el primer botón te lleva a descargarla.</small></div></body></html>""")
+<a class="b p" href="{escape(app)}">{tr("Abrir en la app DrivePanel", lang)}</a>
+<a class="b s" href="{escape(here)}">{tr("Descargar aquí (navegador)", lang)}</a>
+<small>{tr("Si no tienes la app, el primer botón te lleva a descargarla.", lang)}</small></div></body></html>""")
 
 
 _PREVIEW_BOTS = ("whatsapp", "telegrambot", "facebookexternalhit", "twitterbot", "slackbot", "discordbot",
@@ -1080,10 +1110,10 @@ def _is_preview_bot(request: Request) -> bool:
     return any(b in ua for b in _PREVIEW_BOTS)
 
 
-def _preview_page(name: str, size: str) -> HTMLResponse:
+def _preview_page(name: str, size: str, lang: str = "es") -> HTMLResponse:
     from html import escape
-    t, d = escape(name), escape(size + " · compartido con DrivePanel")
-    return HTMLResponse(f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{t}</title>
+    t, d = escape(name), escape(size + " · " + tr("compartido con DrivePanel", lang))
+    return HTMLResponse(f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{t}</title>
 <meta property="og:title" content="{t}"><meta property="og:description" content="{d}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="DrivePanel">
 <meta name="description" content="{d}"></head><body><h1>{t}</h1><p>{d}</p></body></html>""")
@@ -1095,15 +1125,17 @@ def public_link(request: Request, token: str, inline: int = 0, dl: int = 0):
     if s and s["expires"] and s["expires"] < time.time():
         db.run("DELETE FROM shares WHERE id=?", s["id"])
         s = None
+    lang = lang_of(request)
     if not s:
-        return HTMLResponse("<h2 style='font-family:sans-serif'>Enlace no valido o caducado</h2>", 404)
+        return HTMLResponse(f"<h2 style='font-family:sans-serif'>{tr('Enlace no valido o caducado', lang)}</h2>", 404)
     p = safe_path(user_root(s["owner"]), s["path"])
     if (p.is_file() or p.is_dir()) and (_is_preview_bot(request) or (not inline and not dl and _wants_choice(request))):
         name = p.name if p.is_file() else p.name + ".zip"
-        size = f"{p.stat().st_size / 1048576:.1f} MB".replace(".", ",") if p.is_file() else "Carpeta (se descarga en .zip)"
+        mb = f"{p.stat().st_size / 1048576:.1f} MB"
+        size = (mb.replace(".", ",") if lang == "es" else mb) if p.is_file() else tr("Carpeta (se descarga en .zip)", lang)
         if _is_preview_bot(request):
-            return _preview_page(p.name, size)
-        return _choice_page(str(request.url.replace(query="")), name, size)
+            return _preview_page(p.name, size, lang)
+        return _choice_page(str(request.url.replace(query="")), name, size, lang)
     if p.is_file():
         return send_file(p, not inline)
     if p.is_dir():
