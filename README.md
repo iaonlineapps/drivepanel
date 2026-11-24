@@ -15,7 +15,7 @@ WebDAV para que el móvil suba las fotos solo.
 - **Panel de actividad:** gráfico de archivos subidos por día, uso del disco, tipos de
   archivo, estado de la Raspberry Pi en directo, actividad reciente, archivos más grandes y
   espacio por usuario (este último solo para el administrador).
-- **Fotos** por meses, **Recientes**, visor de fotos, vídeo, PDF y texto, y descarga en .zip.
+- **Fotos** por meses o por álbumes, solo de las carpetas que elijas (como la de la copia del móvil); se cargan poco a poco. **Recientes**, visor de fotos, vídeo, PDF y texto, y descarga en .zip.
 - **Papelera** con restaurar, también para lo que se borra por WebDAV.
 - **Compartir** con otro usuario o con un enlace público que puede caducar.
 - **Usuarios:** registro con aprobación del administrador, cuotas, foto de perfil.

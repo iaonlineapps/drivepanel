@@ -451,3 +451,33 @@ table.list{width:100%;border-collapse:collapse}
 .sw-btn.on{border-color:var(--accent)}
 .sw-btn .dot{width:24px;height:24px;border-radius:50%;flex:none}
 
+
+/* fotos: barra, albumes y elegir carpetas */
+.ph-bar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin:12px 0 4px}
+.ph-bar .seg{background:var(--card)}
+.ph-bar .seg button{padding:6px 14px;font-size:13px}
+.ph-info{color:var(--muted);font-size:13px;flex:1;min-width:0}
+.ph-info b{color:var(--text);font-weight:500}
+.ph-more{text-align:center;color:var(--muted);font-size:13px;padding:24px}
+.albums{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-top:16px}
+.album{display:flex;flex-direction:column;align-items:stretch;gap:2px;text-align:left;padding:0;border-radius:12px;min-width:0}
+.album .cov{aspect-ratio:1;background:var(--card);border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
+.album .cov img{width:100%;height:100%;object-fit:cover;transition:transform .2s}
+.album:hover .cov img{transform:scale(1.04)}
+.album b{font-weight:500;font-size:14px;flex:none}
+.album small{color:var(--muted);font-size:12px;flex:none}
+.pick-list{border:1px solid var(--line);border-radius:12px;max-height:300px;overflow-y:auto;margin:8px 0 4px}
+.pick-list.off{opacity:.45}
+.pick-row{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+.pick-row:last-child{border-bottom:0}
+.pick-row.all{border:0;padding:6px 2px}
+.pick-row input{width:auto;flex:none}
+.pick-row span{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.pick-row.all span{flex-direction:column;align-items:flex-start;gap:0}
+.pick-row small{color:var(--muted);font-size:12px;margin-left:auto;flex:none}
+.pick-row.all small{margin-left:0}
+@media (max-width:700px){.albums{grid-template-columns:repeat(2,1fr);gap:10px}}
+.dialog label.pick-row{display:flex;margin:0;font-size:14px;color:var(--text)}
+.dialog .pick-row input{width:18px;height:18px;padding:0;margin:0;accent-color:var(--accent)}
+.ph-bar .btn i,.set-row .btn i{width:18px;height:18px;display:inline-flex;vertical-align:-4px;margin-right:2px}
+@media (max-width:700px){.ph-info{order:3;flex-basis:100%}.ph-bar{justify-content:space-between}}

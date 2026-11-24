@@ -1,4 +1,4 @@
-import asyncio, os, re, secrets, shutil, time, zipfile
+import asyncio, json, os, re, secrets, shutil, time, zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
@@ -323,10 +323,107 @@ async def recent(u=Depends(current_user)):
     return await _latest(u, lambda n: True, 60)
 
 
-@app.get("/api/photos")
-async def photos(u=Depends(current_user)):
+# --- Fotos -----------------------------------------------------------------------
+# Cada usuario elige de que carpetas (de primer nivel) salen las fotos. Si no ha elegido,
+# se usan las carpetas tipicas del movil si existen; si no hay ninguna, todas.
+PHOTO_DEFAULT_DIRS = ("Fotos del móvil", "Del móvil", "Fotos", "Camera", "DCIM")
+
+
+def _photo_files(username):
     exts = IMAGE_EXT | VIDEO_EXT
-    return await _latest(u, lambda n: os.path.splitext(n)[1].lower() in exts, 1000)
+    return [t for t in tree(username) if not t[2] and os.path.splitext(t[1])[1].lower() in exts]
+
+
+def _photo_dirs(username, files):
+    """(carpetas elegidas, si las eligio el usuario). Lista vacia = todas."""
+    raw = settings._get("photos_dirs:" + username)
+    if raw is not None:
+        try:
+            v = json.loads(raw)
+            if isinstance(v, list):
+                return [str(x) for x in v], True
+        except ValueError:
+            pass
+    tops = {t[0].split("/", 1)[0] for t in files if "/" in t[0]}
+    return [d for d in PHOTO_DEFAULT_DIRS if d in tops], False
+
+
+def _in_dirs(rel, dirs):
+    return not dirs or any(rel.startswith(d + "/") for d in dirs)
+
+
+def _chosen_photos(username):
+    files = _photo_files(username)
+    dirs, saved = _photo_dirs(username, files)
+    return [t for t in files if _in_dirs(t[0], dirs)], dirs, saved
+
+
+@app.get("/api/photos")
+async def photos(offset: int = 0, limit: int = Query(200, le=500), album: str | None = None, u=Depends(current_user)):
+    """Fotos y videos de las carpetas elegidas, de mas nuevo a mas viejo, por paginas."""
+    files, dirs, saved = await asyncio.to_thread(_chosen_photos, u["username"])
+    if album is not None:  # un album = las fotos que estan justo en esa carpeta
+        files = [t for t in files if (t[0].rsplit("/", 1)[0] if "/" in t[0] else "") == album]
+    files.sort(key=lambda t: t[4], reverse=True)
+    offset = max(0, offset)
+    return {"items": [tree_entry(t) for t in files[offset:offset + limit]], "total": len(files),
+            "offset": offset, "dirs": dirs, "saved": saved}
+
+
+@app.get("/api/photos/albums")
+async def photo_albums(u=Depends(current_user)):
+    """Un album por cada carpeta que tiene fotos (Camera, WhatsApp Images...)."""
+    files, dirs, saved = await asyncio.to_thread(_chosen_photos, u["username"])
+    albums = {}
+    for t in files:
+        parent = t[0].rsplit("/", 1)[0] if "/" in t[0] else ""
+        a = albums.setdefault(parent, {"path": parent, "name": parent.rsplit("/", 1)[-1] or "Sin carpeta",
+                                       "count": 0, "mtime": 0, "cover": None, "cover_mtime": 0})
+        a["count"] += 1
+        a["mtime"] = max(a["mtime"], t[4])
+        ext = os.path.splitext(t[1])[1].lower()
+        if ext in IMAGE_EXT and ext not in (".heic", ".heif") and t[4] >= a["cover_mtime"]:
+            a["cover"], a["cover_mtime"] = t[0], t[4]
+    out = sorted(albums.values(), key=lambda a: a["mtime"], reverse=True)
+    for a in out:
+        a.pop("cover_mtime")
+    return {"albums": out, "total": len(files), "dirs": dirs, "saved": saved}
+
+
+@app.get("/api/photos/folders")
+async def photo_folders(u=Depends(current_user)):
+    """Carpetas de primer nivel con cuantas fotos tiene cada una (para elegir)."""
+    files = await asyncio.to_thread(_photo_files, u["username"])
+    dirs, saved = _photo_dirs(u["username"], files)
+    counts, loose = {}, 0
+    for t in files:
+        if "/" in t[0]:
+            top = t[0].split("/", 1)[0]
+            counts[top] = counts.get(top, 0) + 1
+        else:
+            loose += 1
+    root = user_root(u["username"])
+    folders = sorted({*counts, *[d for d in dirs if (root / d).is_dir()]}, key=lambda d: (-counts.get(d, 0), d.lower()))
+    return {"folders": [{"name": d, "count": counts.get(d, 0)} for d in folders], "loose": loose,
+            "total": len(files), "dirs": dirs, "saved": saved}
+
+
+class PhotoDirs(BaseModel):
+    dirs: list[str]
+
+
+@app.post("/api/photos/folders")
+def photo_folders_set(b: PhotoDirs, u=Depends(current_user)):
+    root = user_root(u["username"])
+    clean = []
+    for d in b.dirs:
+        d = d.strip("/")
+        if not d or "/" in d or d.startswith(".") or not (root / d).is_dir():
+            raise HTTPException(400, "Carpeta no válida")
+        if d not in clean:
+            clean.append(d)
+    settings._set("photos_dirs:" + u["username"], json.dumps(clean, ensure_ascii=False))
+    return {"dirs": clean, "saved": True}
 
 
 class MkDir(BaseModel):

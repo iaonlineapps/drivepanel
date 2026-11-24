@@ -156,7 +156,7 @@ function updateBadge(n) { const b = $('#pendingBadge'); b.textContent = n; b.cla
 /* ---------- navegacion (hash) ---------- */
 function go(view, path = '', share = null) {
   let h = '#/' + view;
-  if (view === 'drive' && path) h += '/' + path.split('/').map(enc).join('/');
+  if ((view === 'drive' || view === 'photos') && path) h += '/' + path.split('/').map(enc).join('/');
   if (view === 'shared' && share) h += '/' + share + (path ? '/' + path.split('/').map(enc).join('/') : '');
   if (location.hash === h) route(); else location.hash = h;
 }
@@ -169,6 +169,9 @@ function route() {
   if (view === 'users' && !S.me.is_admin) return go('drive');
   S.view = view; S.share = null; S.path = '';
   if (view === 'drive') S.path = parts.slice(1).filter(Boolean).join('/');
+  // en Fotos, lo que va detras es el album abierto («~» = las fotos sueltas de Mi unidad)
+  S.phAlbum = null;
+  if (view === 'photos' && parts.slice(1).filter(Boolean).length) { const a = parts.slice(1).filter(Boolean).join('/'); S.phAlbum = a === '~' ? '' : a; }
   if (view === 'shared' && parts[1]) { S.share = +parts[1]; S.path = parts.slice(2).filter(Boolean).join('/'); }
   S.q = ''; $('#search').value = '';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
@@ -185,7 +188,10 @@ async function load() {
     if (S.q) data = await api('/api/search?q=' + enc(S.q));
     else if (S.view === 'drive') data = await api('/api/list?path=' + enc(S.path));
     else if (S.view === 'recent') data = await api('/api/recent');
-    else if (S.view === 'photos') data = await api('/api/photos');
+    else if (S.view === 'photos') {
+      if (S.phMode === 'albums' && S.phAlbum == null) return renderAlbums();
+      data = await api(photosUrl(0)); S.phMeta = data;
+    }
     else if (S.view === 'trash') data = await api('/api/trash');
     else if (S.view === 'users') return renderUsers();
     else if (S.view === 'panel') return renderPanel();
@@ -209,6 +215,7 @@ function crumbs() {
     const sh = (S.sharesData?.withme || []).find(x => x.share_id === S.share);
     html += `<span class="sep">›</span><button data-p="">${esc(sh ? sh.name + ' (' + sh.owner + ')' : 'Compartido')}</button>`;
   }
+  if (S.view === 'photos' && S.phAlbum != null && !S.q) html += `<span class="sep">›</span><button data-p="${esc(S.phAlbum || '~')}">${esc(albumName(S.phAlbum))}</button>`;
   let acc = '';
   (S.view === 'drive' || S.share) && S.path.split('/').filter(Boolean).forEach(seg => {
     acc = acc ? acc + '/' + seg : seg;
@@ -224,7 +231,7 @@ function crumbs() {
 function emptyMsg() {
   if (S.q) return 'No se ha encontrado nada';
   return {drive:'Esta carpeta está vacía. Arrastra archivos aquí o usa «Nuevo».', shared:'Nadie ha compartido nada contigo todavía.',
-    recent:'Aún no hay archivos.', photos:'Aquí aparecerán tus fotos y vídeos.', trash:'La papelera está vacía.'}[S.view] || 'Vacío';
+    recent:'Aún no hay archivos.', photos:'No hay fotos ni vídeos en las carpetas elegidas. Pulsa «Elegir carpetas» para cambiarlas.', trash:'La papelera está vacía.'}[S.view] || 'Vacío';
 }
 
 function render() {
@@ -235,14 +242,17 @@ function render() {
   const c = $('#content');
   let html = '';
   if (S.view === 'shared' && !S.share && !S.q) html += myLinksHtml();
-  if (!S.items.length) { c.innerHTML = html + `<div class="empty">${ic(S.view === 'trash' ? 'trash' : S.view === 'photos' ? 'photo' : 'drive')}${emptyMsg()}</div>`; bindShareRows(c); updateSel(); return; }
-  if (S.view === 'photos' && !S.q) html += photosHtml();
+  const phv = S.view === 'photos' && !S.q;
+  if (phv) html += photosBar();
+  if (!S.items.length) { c.innerHTML = html + `<div class="empty">${ic(S.view === 'trash' ? 'trash' : S.view === 'photos' ? 'photo' : 'drive')}${emptyMsg()}</div>`; bindShareRows(c); phv && bindPhotosBar(c); updateSel(); return; }
+  if (phv) html += photosHtml() + (S.items.length < (S.phMeta?.total || 0) ? '<div id="phMore" class="ph-more">Cargando más…</div>' : '');
   else if (S.mode === 'list') html += listHtml();
   else html += gridHtml();
   c.innerHTML = html;
   c.querySelectorAll('.item').forEach(bindItem);
   bindShareRows(c);
   observeThumbs(c);
+  if (phv) bindPhotosBar(c);
   updateSel();
 }
 
@@ -289,6 +299,78 @@ function listHtml() {
       <td class="c-m hide-sm">${it.share_id ? esc(it.owner) : fmtDate(it.mtime)}</td><td class="c-m">${it.dir ? '—' : fmtSize(it.size)}</td>
       <td style="width:40px"><button class="icon-btn more">${svg('more')}</button></td></tr>`).join('') + `</tbody></table></div>`;
 }
+/* ---------- Fotos: solo de las carpetas elegidas, por fecha o por álbumes, y por páginas ---------- */
+const PH_PAGE = 200;
+S.phMode = (() => { try { return localStorage.getItem('dp-phmode') === 'albums' ? 'albums' : 'date'; } catch (e) { return 'date'; } })();
+const photosUrl = off => `/api/photos?offset=${off}&limit=${PH_PAGE}` + (S.phAlbum != null ? '&album=' + enc(S.phAlbum) : '');
+const albumName = a => a ? a.split('/').pop() : 'Sueltas en Mi unidad';
+const fmtCount = n => `${fmtNum(n)} ${n === 1 ? 'foto o vídeo' : 'fotos y vídeos'}`;
+function dirsText(m) { return !m ? '' : m.dirs.length ? 'de ' + m.dirs.map(esc).join(', ') : 'de todas tus carpetas'; }
+function photosBar() {
+  const m = S.phMeta;
+  if (S.phAlbum != null) return `<div class="ph-bar"><button class="btn small" id="phBack">${ic('left')} Álbumes</button>
+    <span class="ph-info"><b>${esc(albumName(S.phAlbum))}</b> · ${fmtCount(m?.total || 0)}</span></div>`;
+  return `<div class="ph-bar"><div class="seg" id="phMode"><button data-m="date" class="${S.phMode === 'date' ? 'on' : ''}">Por fecha</button><button data-m="albums" class="${S.phMode === 'albums' ? 'on' : ''}">Por álbumes</button></div>
+    <span class="ph-info">${m ? fmtCount(m.total) + ' ' + dirsText(m) : ''}</span>
+    <button class="btn small" id="phDirs">${ic('folder')} Elegir carpetas</button></div>`;
+}
+let phObs, phLoading = false;
+function bindPhotosBar(c) {
+  const mode = c.querySelector('#phMode');
+  if (mode) mode.onclick = e => { const m = e.target.closest('[data-m]')?.dataset.m; if (!m || m === S.phMode) return; S.phMode = m; try { localStorage.setItem('dp-phmode', m); } catch (er) {} load(); };
+  const dirs = c.querySelector('#phDirs'); if (dirs) dirs.onclick = photoDirsDialog;
+  const back = c.querySelector('#phBack'); if (back) back.onclick = () => { S.phMode = 'albums'; go('photos'); };
+  phObs?.disconnect();
+  const more = c.querySelector('#phMore');
+  if (more) { phObs = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) morePhotos(); }, {root: c, rootMargin: '800px'}); phObs.observe(more); }
+}
+// cuando llegas al final se piden las siguientes 200 (con muchas fotos, la Pi no tiene que mandarlas todas de golpe)
+async function morePhotos() {
+  if (phLoading || S.view !== 'photos') return;
+  phLoading = true;
+  try {
+    const view = S.view, album = S.phAlbum, r = await api(photosUrl(S.items.length));
+    if (S.view !== view || S.phAlbum !== album) return;
+    S.items.push(...r.items); S.phMeta = r;
+    const c = $('#content'), top = c.scrollTop; render(); c.scrollTop = top;
+  } catch (e) { toast(e.message); }
+  finally { phLoading = false; }
+}
+async function renderAlbums() {
+  const c = $('#content');
+  let r;
+  try { r = await api('/api/photos/albums'); } catch (e) { c.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  if (S.view !== 'photos' || S.phAlbum != null || S.phMode !== 'albums') return;
+  S.items = []; S.phMeta = r; crumbs(); $('#emptyTrash').classList.add('hidden');
+  let h = photosBar();
+  if (!r.albums.length) h += `<div class="empty">${ic('photo')}${emptyMsg()}</div>`;
+  else h += `<div class="albums">` + r.albums.map(a => `<button class="album" data-al="${esc(a.path || '~')}" title="${esc(a.path || 'Mi unidad')}">
+      <span class="cov">${a.cover ? `<img data-src="${thumbUrl(a.cover)}" alt="">` : ic('photo', 'big-ic ic-image')}</span>
+      <b class="ell">${esc(a.name)}</b><small class="ell">${fmtCount(a.count)}${a.path.includes('/') ? ' · ' + esc(a.path.split('/').slice(0, -1).join('/')) : ''}</small></button>`).join('') + `</div>`;
+  c.innerHTML = h;
+  c.querySelectorAll('[data-al]').forEach(b => b.onclick = () => go('photos', b.dataset.al));
+  observeThumbs(c); bindPhotosBar(c); updateSel();
+}
+async function photoDirsDialog() {
+  let r; try { r = await api('/api/photos/folders'); } catch (e) { return toast(e.message); }
+  const all = !r.dirs.length;
+  const p = dialog(`<h3>Carpetas de Fotos</h3><p>Elige de qué carpetas salen las fotos y vídeos en «Fotos». Las demás no se tocan: siguen en Mi unidad, solo que no salen aquí.</p>
+    <label class="pick-row all"><input type="checkbox" id="phAll" ${all ? 'checked' : ''}><span><b>Todas las carpetas</b><small>${fmtCount(r.total)}</small></span></label>
+    <div class="pick-list" id="phList">${r.folders.length ? r.folders.map(f => `<label class="pick-row"><input type="checkbox" value="${esc(f.name)}" ${r.dirs.includes(f.name) ? 'checked' : ''}><span>${ic('folder', 'ic-folder')}<b class="ell">${esc(f.name)}</b><small>${fmtNum(f.count)}</small></span></label>`).join('') : '<div class="sub" style="padding:12px">Aún no tienes carpetas con fotos.</div>'}</div>
+    <div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="phSave">Guardar</button></div>`);
+  const box = $('#dialogBox'), allCb = box.querySelector('#phAll'), cbs = [...box.querySelectorAll('#phList input')];
+  const sync = () => box.querySelector('#phList').classList.toggle('off', allCb.checked);
+  allCb.onchange = () => { if (!allCb.checked && !cbs.some(x => x.checked) && cbs[0]) cbs[0].checked = true; sync(); };
+  cbs.forEach(x => x.onchange = () => { if (x.checked) allCb.checked = false; else if (!cbs.some(y => y.checked)) allCb.checked = true; sync(); });
+  sync();
+  box.querySelector('#phSave').onclick = async () => {
+    const dirs = allCb.checked ? [] : cbs.filter(x => x.checked).map(x => x.value);
+    try { await api('/api/photos/folders', {json: {dirs}}); closeDialog(true); toast(dirs.length ? 'Fotos: ' + dirs.join(', ') : 'Fotos: todas las carpetas'); if (S.view === 'photos') load(); if (S.view === 'settings') renderSettings(); }
+    catch (e) { toast(e.message); }
+  };
+  return p;
+}
+
 function photosHtml() {
   let h = '', month = '';
   S.items.forEach(it => {
@@ -1062,7 +1144,9 @@ async function renderSettings() {
   if (S.view !== 'settings') return;
   const theme = document.documentElement.dataset.theme || 'auto';
   let h = `<div class="settings">
-    <section class="card"><div class="set-head">${ic('account')}<div><h4>Tus preferencias</h4><div class="sub">Solo para ti y en este navegador</div></div></div>
+    <section class="card"><div class="set-head">${ic('account')}<div><h4>Tus preferencias</h4><div class="sub">Solo para ti</div></div></div>
+      <div class="set-row"><span><b>Carpetas de Fotos</b><small id="stPhDirs">De qué carpetas salen las fotos y vídeos en «Fotos»</small></span>
+        <button class="btn small" id="stPhBtn">${ic('folder')} Elegir carpetas</button></div>
       <label class="set-row"><span><b>Pantalla de inicio</b><small>Lo que se abre al entrar en DrivePanel</small></span>
         <select id="stHome">${Object.entries(HOMES).map(([k, v]) => `<option value="${k}" ${k === homeView() ? 'selected' : ''}>${v[1]}</option>`).join('')}</select></label>
       <label class="set-row"><span><b>Tema</b><small>Claro, oscuro o el que tenga el dispositivo</small></span>
@@ -1091,6 +1175,8 @@ async function renderSettings() {
   }
   h += `</div>`;
   c.innerHTML = h;
+  $('#stPhBtn').onclick = photoDirsDialog;
+  api('/api/photos/folders').then(r => { const el = $('#stPhDirs'); if (el) el.textContent = 'Ahora: ' + (r.dirs.length ? r.dirs.join(', ') : 'todas las carpetas'); }).catch(() => {});
   $('#stHome').onchange = e => { try { localStorage.setItem('dp-home', e.target.value); } catch (er) {} toast('Al entrar se abrirá: ' + HOMES[e.target.value][1]); };
   $('#stTheme').onchange = e => { document.documentElement.dataset.theme = e.target.value; try { localStorage.setItem('dp-theme', e.target.value); } catch (er) {} paintTheme(); };
   if (!A) return;
