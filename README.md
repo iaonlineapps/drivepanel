@@ -6,6 +6,11 @@ Tu propio "Google Drive" en casa, pensado para una Raspberry Pi (funciona en cua
 Linux con Docker). Ligero (unos 40 MB de RAM), en español, con modo claro/oscuro y
 WebDAV para que el móvil suba las fotos solo.
 
+> **Idiomas / Languages:** ahora DrivePanel está en español. **El inglés llegará muy pronto**,
+> y más adelante otros idiomas si la gente los pide.
+> DrivePanel is in Spanish right now. **English is coming very soon**, and more languages
+> will follow later if people ask for them.
+
 **Qué incluye:**
 
 - **Mi unidad:** carpetas, cuadrícula con miniaturas o lista, búsqueda, renombrar, mover y
