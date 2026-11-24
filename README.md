@@ -411,6 +411,9 @@ Android se desinstala como cualquier otra; quita también la cuenta WebDAV si la
 Si lo instalaste desde una tienda (CasaOS, Umbrel o Runtipi), desinstálalo desde la propia
 tienda.
 
+Para recuperar una copia: `sudo tar -xzf drivepanel-copia-FECHA.tar.gz -C CARPETA-DONDE-QUIERAS`
+y pon esa carpeta en `DATA_DIR` del `.env` antes de volver a instalar.
+
 ## 10. Licencia
 
 DrivePanel se publica con la licencia
