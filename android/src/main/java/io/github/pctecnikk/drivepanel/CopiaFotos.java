@@ -45,7 +45,7 @@ public class CopiaFotos extends JobService {
 
     static final String K_ON = "auto_on", K_WIFI = "auto_wifi", K_FOLDER = "auto_folder", K_CAMERA = "auto_camera",
             K_SINCE = "auto_since", K_SINCE_ID = "auto_since_id", K_STATUS = "auto_status", K_LAST = "auto_last",
-            K_COOKIE = "auto_cookie", K_TOTAL = "auto_total";
+            K_COOKIE = "auto_cookie", K_TOTAL = "auto_total", K_PAUSED = "auto_paused";
     static final String DEFAULT_FOLDER = "Fotos del móvil";
     private static final int JOB_PERIODIC = 41, JOB_TRIGGER = 42, JOB_NOW = 43;
     private static final String CHANNEL = "copia";
@@ -142,6 +142,42 @@ public class CopiaFotos extends JobService {
 
     interface Stop { boolean stop(); }
 
+    /** Progreso en directo de la copia: lo lee la pantalla "Copia automática de fotos". */
+    static final class Live {
+        static volatile boolean running, halt;
+        static volatile int index, count;
+        static volatile String name = "";
+        static volatile long totalBytes, doneBytes, fileSent, start, speed;
+        static final int MAX = 120;
+        static final double[] samples = new double[MAX];
+        static volatile int seq;                    // muestras anadidas desde que empezo
+
+        static long sent() { return doneBytes + fileSent; }
+
+        static synchronized void sample(double v) {
+            samples[seq % MAX] = v;
+            seq++;
+        }
+
+        /** Muestras en orden, de la mas antigua a la mas nueva. */
+        static synchronized double[] history() {
+            int n = Math.min(seq, MAX);
+            double[] out = new double[n];
+            for (int i = 0; i < n; i++) out[i] = samples[(seq - n + i) % MAX];
+            return out;
+        }
+
+        static int percent() {
+            return totalBytes <= 0 ? 0 : (int) Math.min(100, sent() * 100 / totalBytes);
+        }
+
+        /** Segundos que quedan, o -1 si aun no se sabe. */
+        static long eta() {
+            long left = totalBytes - sent();
+            return speed > 0 ? left / speed : -1;
+        }
+    }
+
     interface Opener { InputStream open(Media m) throws Exception; }
 
     // ------------------------------------------------------------------ La copia
@@ -204,10 +240,42 @@ public class CopiaFotos extends JobService {
         }
     }
 
+    // ------------------------------------------------------------------ Pausar, seguir, cancelar
+
+    static boolean paused(Context c) {
+        return prefs(c).getBoolean(K_PAUSED, false);
+    }
+
+    /** Para la copia en curso y no copia nada mas hasta que se pulse Reanudar. */
+    static void pause(Context c) {
+        prefs(c).edit().putBoolean(K_PAUSED, true).apply();
+        Live.halt = true;
+        setStatus(c, "En pausa: pulsa Reanudar para seguir copiando");
+        notifications(c).cancel(NOTIF_PROGRESS);
+    }
+
+    static void resume(Context c) {
+        prefs(c).edit().putBoolean(K_PAUSED, false).apply();
+        setStatus(c, "Reanudando…");
+        runNow(c);
+    }
+
+    /** Para la copia en curso y se olvida de lo que faltaba: solo se copiaran las fotos nuevas desde ahora. */
+    static void cancel(Context c) {
+        Live.halt = true;
+        prefs(c).edit().putBoolean(K_PAUSED, false)
+                .putLong(K_SINCE, System.currentTimeMillis() / 1000).putLong(K_SINCE_ID, Long.MAX_VALUE).apply();
+        setStatus(c, "Cancelada: las fotos que faltaban no se copian; las nuevas, sí");
+        notifications(c).cancel(NOTIF_PROGRESS);
+    }
+
     /** Hace la copia. Devuelve true si hay que reintentar mas tarde (se corto). */
-    static synchronized boolean copy(Context c, Stop stop) throws Exception {
+    static synchronized boolean copy(Context c, final Stop jobStop) throws Exception {
         SharedPreferences p = prefs(c);
         if (!p.getBoolean(K_ON, false)) return false;
+        if (p.getBoolean(K_PAUSED, false)) return false;
+        Live.halt = false;
+        final Stop stop = new Stop() { @Override public boolean stop() { return Live.halt || jobStop.stop(); } };
         String base = p.getString("server_url", null);
         String cookie = p.getString(K_COOKIE, null);
         if (base == null) return false;
@@ -223,15 +291,52 @@ public class CopiaFotos extends JobService {
         String folder = p.getString(K_FOLDER, DEFAULT_FOLDER);
         String ua = "DrivePanelAndroid/" + version(c) + " (copia de fotos)";
         int done = 0, skipped = 0;
-        NotificationManager nm = notifications(c);
+        final NotificationManager nm = notifications(c);
+        final Context ctx = c;
+        long all = 0;
+        for (Media m : list) all += m.size;
+        synchronized (Live.class) { Live.seq = 0; }
+        Live.totalBytes = all;
+        Live.doneBytes = 0;
+        Live.fileSent = 0;
+        Live.count = list.size();
+        Live.index = 0;
+        Live.speed = 0;
+        Live.start = System.currentTimeMillis();
+        Live.running = true;
+        // Cada segundo: velocidad, grafica y aviso con %, velocidad y tiempo que queda
+        Thread ticker = new Thread(new Runnable() { @Override public void run() {
+            long last = Live.sent();
+            double[] win = new double[5];
+            int k = 0;
+            while (Live.running) {
+                try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
+                long now = Live.sent();
+                double v = Math.max(0, now - last);
+                last = now;
+                Live.sample(v);
+                win[k++ % win.length] = v;
+                double sum = 0;
+                int n = Math.min(k, win.length);
+                for (int i = 0; i < n; i++) sum += win[i];
+                Live.speed = (long) (sum / n);
+                progress(ctx, nm);
+            }
+        } });
+        ticker.setDaemon(true);
+        ticker.start();
         try {
             for (int i = 0; i < list.size(); i++) {
                 if (stop.stop()) {
+                    if (Live.halt) return false;
                     setStatus(c, "En pausa (" + (list.size() - i) + " pendientes)");
                     return true;
                 }
                 Media m = list.get(i);
-                progress(c, nm, i + 1, list.size(), m.name);
+                Live.index = i + 1;
+                Live.name = m.name;
+                Live.fileSent = 0;
+                progress(c, nm);
                 final ContentResolver cr = c.getContentResolver();
                 int r = upload(new Opener() { @Override public InputStream open(Media x) throws Exception { return cr.openInputStream(x.uri); } },
                         base, cookie, ua, folder, m, stop);
@@ -241,6 +346,7 @@ public class CopiaFotos extends JobService {
                     return false;
                 }
                 if (r == -2) { // cortado a medias
+                    if (Live.halt) return false; // pausada o cancelada desde la app
                     setStatus(c, "En pausa (" + (list.size() - i) + " pendientes)");
                     return true;
                 }
@@ -249,10 +355,15 @@ public class CopiaFotos extends JobService {
                     return true;
                 }
                 if (r == -1) skipped++; else done++;
+                Live.fileSent = 0;
+                Live.doneBytes += m.size;
+                if (Live.halt) return false;
                 p.edit().putLong(K_SINCE, m.added).putLong(K_SINCE_ID, m.id)
                         .putLong(K_TOTAL, p.getLong(K_TOTAL, 0) + (r == 200 ? 1 : 0)).apply();
             }
         } finally {
+            Live.running = false;
+            ticker.interrupt();
             nm.cancel(NOTIF_PROGRESS);
         }
         String when = new SimpleDateFormat("d/M HH:mm", new Locale("es", "ES")).format(new Date());
@@ -288,6 +399,7 @@ public class CopiaFotos extends JobService {
                 if (in == null) return 200; // ya no existe: se salta
                 try {
                     skipFully(in, offset);
+                    Live.fileSent = offset;
                     OutputStream out = h.getOutputStream();
                     byte[] buf = new byte[256 * 1024];
                     int left = len;
@@ -296,6 +408,7 @@ public class CopiaFotos extends JobService {
                         if (n < 0) break;
                         out.write(buf, 0, n);
                         left -= n;
+                        Live.fileSent += n;
                         if (stop.stop()) { h.disconnect(); return -2; }
                     }
                     out.close();
@@ -347,17 +460,37 @@ public class CopiaFotos extends JobService {
         return b;
     }
 
-    private static void progress(Context c, NotificationManager nm, int i, int n, String name) {
+    /** Una linea con lo que se lleva: "120 MB de 980 MB · 2,1 MB/s · quedan 4 min". */
+    static String stats() {
+        StringBuilder b = new StringBuilder(Descargas.size(Live.sent()) + " de " + Descargas.size(Live.totalBytes));
+        if (Live.speed > 0) b.append(" · ").append(Descargas.size(Live.speed)).append("/s");
+        long eta = Live.eta();
+        if (eta >= 0) b.append(" · quedan ").append(Descargas.time(eta));
+        return b.toString();
+    }
+
+    private static void progress(Context c, NotificationManager nm) {
+        if (!Live.running) return;
         try {
+            int pct = Live.percent();
             nm.notify(NOTIF_PROGRESS, builder(c)
                     .setSmallIcon(android.R.drawable.stat_sys_upload)
-                    .setContentTitle("Copiando fotos a DrivePanel: " + i + " de " + n)
-                    .setContentText(name)
-                    .setProgress(n, i - 1, false)
+                    .setContentTitle("Copiando fotos: " + Live.index + " de " + Live.count + " · " + pct + " %")
+                    .setContentText(stats())
+                    .setSubText(Live.name)
+                    .setStyle(new Notification.BigTextStyle().bigText(stats() + "\n" + Live.name))
+                    .setProgress(1000, Live.totalBytes <= 0 ? 0 : (int) Math.min(1000, Live.sent() * 1000 / Live.totalBytes), false)
                     .setOngoing(true)
                     .setOnlyAlertOnce(true)
+                    .addAction(android.R.drawable.ic_media_pause, "Pausar", action(c, AccionCopia.PAUSE))
+                    .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Cancelar", action(c, AccionCopia.CANCEL))
                     .build());
         } catch (Exception ignored) { } // sin permiso de notificaciones: no pasa nada
+    }
+
+    private static PendingIntent action(Context c, String what) {
+        Intent i = new Intent(c, AccionCopia.class).setAction(what);
+        return PendingIntent.getBroadcast(c, what.hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     private static void result(Context c, NotificationManager nm, String title, String text) {

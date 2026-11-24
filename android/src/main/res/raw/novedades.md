@@ -4,6 +4,7 @@
 
 ## Versión 1.6.3
 - Copia automática de fotos, como Google Fotos: la app sube sola las fotos y vídeos nuevos del móvil a una carpeta de DrivePanel, con una subcarpeta por álbum. Se puede elegir solo con wifi, solo las de la cámara y la carpeta. Actívala pulsando Atrás → «Copia automática de fotos».
+- Mientras copia ves el progreso en directo, como en las subidas: cuántas lleva, porcentaje, gráfica de velocidad y tiempo que queda. Puedes pausarla, reanudarla o cancelarla desde la app o desde el aviso.
 - Los vídeos se pueden poner a pantalla completa (se gira el móvil solo).
 
 ## Versión 1.6.2

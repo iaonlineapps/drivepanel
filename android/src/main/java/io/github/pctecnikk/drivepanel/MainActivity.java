@@ -884,7 +884,59 @@ public class MainActivity extends Activity {
         folder.setText(prefs.getString(CopiaFotos.K_FOLDER, CopiaFotos.DEFAULT_FOLDER));
         box.addView(folder);
 
-        TextView st = new TextView(this);
+        // Progreso en directo (como las subidas y descargas): %, archivo, grafica, velocidad y tiempo
+        final boolean dark = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        final LinearLayout live = new LinearLayout(this);
+        live.setOrientation(LinearLayout.VERTICAL);
+        live.setPadding(0, dp(14), 0, 0);
+        final TextView lHead = new TextView(this);
+        lHead.setTextSize(16);
+        lHead.setTypeface(Typeface.DEFAULT_BOLD);
+        live.addView(lHead);
+        final TextView lName = new TextView(this);
+        lName.setTextSize(13);
+        lName.setSingleLine(true);
+        lName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        lName.setTextColor(0xFF5F6368);
+        live.addView(lName);
+        final ProgressBar lBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        lBar.setMax(1000);
+        live.addView(lBar);
+        final GraficaVelocidad lGraph = new GraficaVelocidad(this, dark);
+        live.addView(lGraph, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(80)));
+        final TextView lStats = new TextView(this);
+        lStats.setTextSize(13);
+        lStats.setPadding(0, dp(4), 0, 0);
+        live.addView(lStats);
+        LinearLayout lButtons = new LinearLayout(this);
+        lButtons.setOrientation(LinearLayout.HORIZONTAL);
+        Button lPause = new Button(this);
+        lPause.setText("Pausar");
+        lPause.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
+            CopiaFotos.pause(MainActivity.this);
+            toast("Copia en pausa");
+        } });
+        Button lCancel = new Button(this);
+        lCancel.setText("Cancelar");
+        lCancel.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
+            new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("¿Cancelar la copia?")
+                    .setMessage("Las fotos y vídeos que faltan no se copiarán. Las fotos nuevas que hagas a partir de ahora sí se seguirán copiando solas.")
+                    .setPositiveButton("Cancelar copia", new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                        CopiaFotos.cancel(MainActivity.this);
+                        toast("Copia cancelada");
+                    } })
+                    .setNegativeButton("Seguir copiando", null)
+                    .show();
+        } });
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        lButtons.addView(lPause, half);
+        lButtons.addView(lCancel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        live.addView(lButtons);
+        box.addView(live);
+
+        final TextView st = new TextView(this);
         String status = prefs.getString(CopiaFotos.K_STATUS, null);
         long total = prefs.getLong(CopiaFotos.K_TOTAL, 0);
         st.setText(on ? "\nEstado: " + (status != null ? status : "esperando") + "\nCopiadas hasta ahora: " + total
@@ -915,15 +967,48 @@ public class MainActivity extends Activity {
             } });
         }
         final AlertDialog dlg = b.show();
+        final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        final int[] seen = {-1};
+        final boolean[] wasRunning = {false};
+        final Button[] nowRef = {null};
+        ui.post(new Runnable() { @Override public void run() {
+            if (!dlg.isShowing()) return;
+            boolean running = CopiaFotos.Live.running;
+            live.setVisibility(running ? View.VISIBLE : View.GONE);
+            if (running) {
+                long sent = CopiaFotos.Live.sent(), total = CopiaFotos.Live.totalBytes;
+                float frac = total <= 0 ? 0 : (float) sent / total;
+                lHead.setText("Copiando " + CopiaFotos.Live.index + " de " + CopiaFotos.Live.count + " · " + CopiaFotos.Live.percent() + " %");
+                lName.setText(CopiaFotos.Live.name);
+                lBar.setProgress((int) (frac * 1000));
+                lStats.setText(CopiaFotos.stats());
+                int seq = CopiaFotos.Live.seq;
+                if (seen[0] < 0 || seq < seen[0] || seq - seen[0] > 1) {
+                    lGraph.reset();
+                    for (double v : CopiaFotos.Live.history()) lGraph.add(v, frac);
+                } else if (seq > seen[0]) {
+                    double[] h = CopiaFotos.Live.history();
+                    if (h.length > 0) lGraph.add(h[h.length - 1], frac);
+                }
+                seen[0] = seq;
+            } else if (wasRunning[0] || CopiaFotos.Live.halt) {
+                String s2 = prefs.getString(CopiaFotos.K_STATUS, null);
+                st.setText("\nEstado: " + (s2 != null ? s2 : "esperando") + "\nCopiadas hasta ahora: " + prefs.getLong(CopiaFotos.K_TOTAL, 0));
+            }
+            if (nowRef[0] != null) nowRef[0].setText(CopiaFotos.paused(MainActivity.this) ? "Reanudar copia" : "Copiar ahora");
+            wasRunning[0] = running;
+            ui.postDelayed(this, 1000);
+        } });
         if (on) {
             // "Copiar ahora" sin cerrar el dialogo de un toque accidental
-            Button now = new Button(this);
-            now.setText("Copiar ahora");
+            final Button now = new Button(this);
+            nowRef[0] = now;
+            now.setText(CopiaFotos.paused(this) ? "Reanudar copia" : "Copiar ahora");
             now.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
                 saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
-                CopiaFotos.runNow(MainActivity.this);
-                toast("Copiando… verás el progreso en las notificaciones");
-                dlg.dismiss();
+                if (CopiaFotos.paused(MainActivity.this)) CopiaFotos.resume(MainActivity.this);
+                else CopiaFotos.runNow(MainActivity.this);
+                toast("Copiando…");
             } });
             box.addView(now);
         }

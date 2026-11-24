@@ -57,6 +57,7 @@
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+        <receiver android:name=".AccionCopia" android:exported="false" />
         <service
             android:name=".CopiaFotos"
             android:exported="false"
