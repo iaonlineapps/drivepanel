@@ -73,6 +73,10 @@ You can also set `ADMIN_USER` and `ADMIN_PASSWORD` in `.env` to create the admin
 **Update:** `cd drivepanel && git pull && docker compose up -d --build`. Your files and users
 are kept in `DATA_DIR`.
 
+**Uninstall:** `cd drivepanel && bash uninstall.sh`. It asks before deleting anything,
+offers a backup of your data, removes the Docker container and image, and asks whether to
+delete your files too (you must type `BORRAR` to confirm). The script speaks Spanish.
+
 **Adding a language:** copy `app/static/i18n/en.json` to `<code>.json`, translate the
 values (the keys are the Spanish texts) and add the code to `LANGS` in
 `app/static/i18n.js` and `app/i18n.py`.
