@@ -819,6 +819,50 @@ def zip_download(paths: list[str] = Query(...), share: int | None = None, u=Depe
     return zip_response(items, name)
 
 
+# --- descargar carpetas tal cual (archivo a archivo, con sus subcarpetas) -----
+def _tree_of(p: Path, root: Path, top: str, files: list, dirs: list):
+    """Todo lo que hay dentro de p, con rutas que empiezan por top (el nombre de la carpeta)."""
+    dirs.append(top)
+    stack = [(p, top)]
+    while stack:
+        d, pre = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                ents = sorted(it, key=lambda e: e.name.lower())
+        except OSError:
+            continue
+        for e in ents:
+            if e.name.startswith("."):
+                continue
+            rel = pre + "/" + e.name
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    dirs.append(rel)
+                    stack.append((Path(e.path), rel))
+                elif e.is_file(follow_symlinks=False):
+                    st = e.stat(follow_symlinks=False)
+                    files.append({"path": Path(e.path).relative_to(root).as_posix(), "rel": rel,
+                                  "size": st.st_size, "mtime": st.st_mtime})
+            except OSError:
+                pass
+
+
+@app.get("/api/tree")
+def tree(paths: list[str] = Query(...), share: int | None = None, u=Depends(current_user)):
+    """Lista de archivos de una o varias carpetas para bajarlas una a una sin .zip."""
+    files, dirs = [], []
+    for rel in paths:
+        root, p, _ = resolve(u, rel, share)
+        if p.is_file():
+            st = p.stat()
+            files.append({"path": p.relative_to(root).as_posix(), "rel": p.name, "size": st.st_size, "mtime": st.st_mtime})
+        elif p.is_dir():
+            _tree_of(p, root, p.name or "mi-unidad", files, dirs)
+        else:
+            raise HTTPException(404, f"No existe: {rel}")
+    return {"files": files, "dirs": dirs, "size": sum(f["size"] for f in files)}
+
+
 # --- propiedades (como "Propiedades" en Windows) ------------------------------
 def _props_one(p: Path) -> dict:
     st = p.stat()
