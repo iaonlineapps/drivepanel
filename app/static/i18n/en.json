@@ -598,5 +598,9 @@
  "Estrechos (1 cm)": "Narrow (1 cm)",
  "Sin márgenes": "No margins",
  "Guardar todas las tablas como hoja de cálculo (.xlsx)": "Save all tables as a spreadsheet (.xlsx)",
- "Pasar a Excel": "Export to Excel"
+ "Pasar a Excel": "Export to Excel",
+ "Resultados de «{q}» en «{f}»": "Results for “{q}” in “{f}”",
+ "Buscar en todo": "Search everywhere",
+ "Buscar solo en «{f}»": "Search only in “{f}”",
+ "Buscar en «{f}»": "Search in “{f}”"
 }
