@@ -401,12 +401,15 @@ def list_dir(path: str = "", share: int | None = None, u=Depends(current_user)):
 
 
 @app.get("/api/search")
-async def search(q: str, u=Depends(current_user)):
+async def search(q: str, path: str = "", u=Depends(current_user)):
     needle = q.lower().strip()
     if not needle:
         return {"items": []}
     items = await asyncio.to_thread(tree, u["username"])
-    out = [tree_entry(t) for t in items if needle in t[1].lower()][:300]
+    # Si se busca desde dentro de una carpeta, solo lo que hay en ella (y sus subcarpetas)
+    base = path.strip("/")
+    pre = base + "/" if base else ""
+    out = [tree_entry(t) for t in items if needle in t[1].lower() and t[0].startswith(pre)][:300]
     out.sort(key=lambda x: (not x["dir"], x["name"].lower()))
     return {"items": out}
 

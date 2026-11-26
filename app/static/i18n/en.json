@@ -477,5 +477,9 @@
  "Telegram ha respondido con un error ({code})": "Telegram replied with an error ({code})",
  "No se ha podido conectar con Telegram. ¿Tiene Internet el servidor?": "Couldn't connect to Telegram. Does the server have Internet?",
  "Telegram ha respondido con un error": "Telegram replied with an error",
- "Falta el chat. Escribe algo a tu bot y pulsa «Buscar mi chat»": "The chat is missing. Send something to your bot and tap \"Find my chat\""
+ "Falta el chat. Escribe algo a tu bot y pulsa «Buscar mi chat»": "The chat is missing. Send something to your bot and tap \"Find my chat\"",
+ "Resultados de «{q}» en «{f}»": "Results for “{q}” in “{f}”",
+ "Buscar en todo": "Search everywhere",
+ "Buscar solo en «{f}»": "Search only in “{f}”",
+ "Buscar en «{f}»": "Search in “{f}”"
 }

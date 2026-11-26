@@ -184,7 +184,7 @@ function route() {
   S.phAlbum = null;
   if (view === 'photos' && parts.slice(1).filter(Boolean).length) { const a = parts.slice(1).filter(Boolean).join('/'); S.phAlbum = a === '~' ? '' : a; }
   if (view === 'shared' && parts[1]) { S.share = +parts[1]; S.path = parts.slice(2).filter(Boolean).join('/'); }
-  S.q = ''; $('#search').value = '';
+  S.q = ''; S.qAll = false; $('#search').value = '';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
   const noMode = ['panel', 'settings', 'users'].includes(view);
   $('#gridBtn').classList.toggle('hidden', noMode); $('#listBtn').classList.toggle('hidden', noMode);
@@ -196,7 +196,7 @@ async function load() {
   const c = $('#content');
   try {
     let data;
-    if (S.q) data = await api('/api/search?q=' + enc(S.q));
+    if (S.q) data = await api('/api/search?q=' + enc(S.q) + (searchIn() ? '&path=' + enc(searchIn()) : ''));
     else if (S.view === 'drive') data = await api('/api/list?path=' + enc(S.path));
     else if (S.view === 'recent') data = await api('/api/recent');
     else if (S.view === 'photos') {
@@ -216,11 +216,20 @@ async function load() {
   render();
 }
 
+// Carpeta en la que se busca: la que tienes abierta, salvo que pidas buscar en todo
+const searchIn = () => S.view === 'drive' && S.path && !S.qAll ? S.path : '';
+
 /* ---------- pintar ---------- */
 function crumbs() {
   const el = $('#crumbs');
   const label = t({drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad', settings:'Ajustes'}[S.view]);
-  if (S.q) { el.innerHTML = `<button>${t('Resultados de «{q}»', {q: esc(S.q)})}</button>`; return; }
+  if (S.q) {
+    const f = searchIn(), here = S.view === 'drive' && S.path ? S.path.split('/').pop() : '';
+    el.innerHTML = `<button class="qtitle">${f ? t('Resultados de «{q}» en «{f}»', {q: esc(S.q), f: esc(here)}) : t('Resultados de «{q}»', {q: esc(S.q)})}</button>`
+      + (here ? `<button class="scope" id="qScope">${f ? t('Buscar en todo') : t('Buscar solo en «{f}»', {f: esc(here)})}</button>` : '');
+    const b = $('#qScope'); if (b) b.onclick = () => { S.qAll = !S.qAll; load(); };
+    return;
+  }
   let html = `<button data-p="" data-root="1">${label}</button>`;
   if (S.view === 'shared' && S.share) {
     const sh = (S.sharesData?.withme || []).find(x => x.share_id === S.share);
@@ -249,7 +258,7 @@ function render() {
   crumbs();
   $('#emptyTrash').classList.toggle('hidden', !(S.view === 'trash' && S.items.length));
   $('#gridBtn').classList.toggle('on', S.mode === 'grid'); $('#listBtn').classList.toggle('on', S.mode === 'list');
-  $('#search').placeholder = t('Buscar en Mi unidad');
+  $('#search').placeholder = S.view === 'drive' && S.path ? t('Buscar en «{f}»', {f: S.path.split('/').pop()}) : t('Buscar en Mi unidad');
   const c = $('#content');
   let html = '';
   if (S.view === 'shared' && !S.share && !S.q) html += myLinksHtml();
