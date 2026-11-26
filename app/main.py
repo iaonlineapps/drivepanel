@@ -318,6 +318,27 @@ def me(u=Depends(current_user)):
             "lang": u["lang"] if "lang" in u.keys() else None, **settings.public()}
 
 
+@app.get("/api/novedades")
+def novedades(lang: str = "es", u=Depends(current_user)):
+    """Lista de cambios de la web (app/NOVEDADES.md o NOVEDADES.en.md), para el aviso que sale
+    una vez después de actualizar y para «Novedades» en el menú de usuario."""
+    out, cur = [], None
+    f = APP_DIR / ("NOVEDADES.en.md" if norm_lang(lang) == "en" else "NOVEDADES.md")
+    try:
+        lines = f.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        if line.startswith("## "):
+            cur = {"version": line[3:].strip(), "items": []}
+            out.append(cur)
+        elif cur is not None and line.startswith("- "):
+            cur["items"].append(line[2:].strip())
+        elif cur is not None and line.startswith("  ") and cur["items"]:
+            cur["items"][-1] += " " + line.strip()
+    return {"version": VERSION, "novedades": out}
+
+
 class LangUpd(BaseModel):
     lang: str
 

@@ -653,5 +653,12 @@
  "Cancelar y volver a mi cuenta": "Cancel and go back to my account",
  "Salir de todas las cuentas": "Sign out of all accounts",
  "Cambiar a": "Switch to",
- "Esa cuenta ya no tiene la sesion abierta aqui. Entra con su contrasena": "That account is no longer signed in here. Sign in with its password"
+ "Esa cuenta ya no tiene la sesion abierta aqui. Entra con su contrasena": "That account is no longer signed in here. Sign in with its password",
+ "Novedades": "What's new",
+ "Ver novedades": "See what's new",
+ "Novedades de DrivePanel": "What's new in DrivePanel",
+ "DrivePanel se ha actualizado a la {v}": "DrivePanel has been updated to {v}",
+ "Esto es lo nuevo:": "Here's what's new:",
+ "Versión {v}": "Version {v}",
+ "la tuya": "yours"
 }
