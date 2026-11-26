@@ -25,12 +25,14 @@
   <form id="authForm" class="auth-card">
     <div class="brand big"><img src="/static/icons/icon.svg" alt="">DrivePanel</div>
     <h2 id="authTitle">Iniciar sesión</h2>
+    <div id="authAccounts" class="auth-accounts hidden"></div>
     <input id="authUser" placeholder="Usuario" autocomplete="username" autocapitalize="none" required>
     <input id="authPass" type="password" placeholder="Contraseña" autocomplete="current-password" required>
     <input id="authPass2" type="password" placeholder="Repite la contraseña" autocomplete="new-password" class="hidden">
     <div id="authMsg" class="auth-msg"></div>
     <button class="btn primary" id="authBtn" type="submit">Entrar</button>
     <a href="#" id="authSwitch">¿No tienes cuenta? Regístrate</a>
+    <a href="#" id="authCancel" class="hidden">Cancelar y volver a mi cuenta</a>
     <select id="authLang" class="auth-lang" aria-label="Idioma / Language"></select>
   </form>
 </div>
@@ -102,6 +104,9 @@
         <button id="userBtn" class="user-btn"><span id="userName"></span><span id="userAvatar" class="avatar"></span></button>
         <div id="userMenu" class="menu right hidden">
           <div class="menu-head"><span id="menuAvatar" class="avatar big"></span><b id="menuName"></b><span id="menuVersion" class="menu-version"></span></div>
+          <div id="menuAccounts" class="menu-accounts hidden"></div>
+          <button data-act="addAccount"><i data-i="personAdd"></i>Añadir otra cuenta</button>
+          <hr>
           <button data-act="avatar"><i data-i="photo"></i>Cambiar foto de perfil</button>
           <button data-act="avatarDel" id="avatarDelBtn"><i data-i="close"></i>Quitar foto</button>
           <hr>
@@ -111,6 +116,7 @@
           <button data-act="home"><i data-i="drive"></i>Pantalla de inicio</button>
           <hr>
           <button data-act="logout"><i data-i="logout"></i>Salir</button>
+          <button data-act="logoutAll" id="logoutAllBtn" class="hidden"><i data-i="logout"></i>Salir de todas las cuentas</button>
         </div>
       </div>
     </header>

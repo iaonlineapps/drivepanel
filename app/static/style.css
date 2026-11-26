@@ -523,3 +523,13 @@ table.list{width:100%;border-collapse:collapse}
 .tg-chat input{flex:1}
 .tg-btns{display:flex;gap:8px;flex-wrap:wrap}
 .tg-form .btn i{width:18px;height:18px;display:inline-flex;vertical-align:-4px;margin-right:2px}
+
+/* cambio rápido de usuario */
+.auth-accounts{display:flex;flex-direction:column;gap:6px}
+.acc-row{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;padding:2px 4px 2px 2px}
+.acc-row:hover{background:var(--hover)}
+.acc-pick{flex:1;display:flex;align-items:center;gap:12px;padding:8px 10px;text-align:left;font-size:15px;min-width:0}
+.acc-pick span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-forget{opacity:.6}.acc-forget:hover{opacity:1}
+.acc-or{text-align:center;font-size:13px;color:var(--muted);margin:6px 0 0}
+.menu-accounts button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
