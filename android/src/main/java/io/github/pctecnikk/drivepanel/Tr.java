@@ -233,6 +233,7 @@ final class Tr {
         e("Error ", "Error ");
         e(" al subir ", " uploading ");
         e("; se reintentará", "; it will retry");
+        e("El servidor ha cambiado de dirección; se reintentará", "The server address has changed; it will retry");
         e("Todo copiado · última copia ", "Everything copied · last backup ");
         e("1 foto o vídeo copiado a DrivePanel", "1 photo or video copied to DrivePanel");
         e(" fotos y vídeos copiados a DrivePanel", " photos and videos copied to DrivePanel");

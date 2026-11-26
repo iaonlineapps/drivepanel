@@ -1,5 +1,9 @@
 # What's new in the DrivePanel Android app
 
+## Version 1.6.6
+- Fixed automatic photo backup when you use your own domain with https (for example behind Pangolin). If the saved address was http:// and the server sends you to https://, the app now saves the https one and photos upload on their own again. Nothing to do: just open the app once.
+- If you type a domain without http:// or https:// (for example drive.mydomain.com), the app uses https. A home IP (192.168.1.50:8090) still uses http.
+
 ## Version 1.6.5
 - Download a folder as it is, without a .zip: tap Download on a folder and choose “As it is, with its subfolders”. The app downloads the files one by one to Download/<folder>, with their subfolders, and the downloads panel shows how many are done, the percentage and the time left. Files already there with the same size are skipped. Needs server 1.0.11 or newer.
 

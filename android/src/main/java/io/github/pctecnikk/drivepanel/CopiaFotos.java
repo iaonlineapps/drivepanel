@@ -302,6 +302,7 @@ public class CopiaFotos extends JobService {
             return false;
         }
         List<Media> list = pending(c);
+        if (!list.isEmpty()) base = followRedirect(c, base);
         if (list.isEmpty()) {
             setStatus(c, Tr.t("Todo copiado"));
             return false;
@@ -369,6 +370,11 @@ public class CopiaFotos extends JobService {
                     setStatus(c, Tr.t("En pausa (") + (list.size() - i) + Tr.t(" pendientes)"));
                     return true;
                 }
+                if (r >= 300 && r < 400) {
+                    base = followRedirect(c, base);
+                    setStatus(c, Tr.t("El servidor ha cambiado de dirección; se reintentará"));
+                    return true;
+                }
                 if (r != 200 && r != -1) {
                     setStatus(c, Tr.t("Error ") + r + Tr.t(" al subir ") + m.name + Tr.t("; se reintentará"));
                     return true;
@@ -391,6 +397,35 @@ public class CopiaFotos extends JobService {
         if (done > 0) result(c, nm, done == 1 ? Tr.t("1 foto o vídeo copiado a DrivePanel") : done + Tr.t(" fotos y vídeos copiados a DrivePanel"),
                 Tr.t("Carpeta: ") + (folder.isEmpty() ? Tr.t("Mi unidad") : folder));
         return false;
+    }
+
+    /**
+     * Si el servidor redirige (por ejemplo http://drive.midominio.com -> https://..., como hace
+     * Pangolin), se guarda la nueva direccion. Las subidas (PUT) no siguen redirecciones solas
+     * y fallaban con "Error 301/308".
+     */
+    static String followRedirect(Context c, String base) {
+        String b = base;
+        for (int hop = 0; hop < 4; hop++) {
+            HttpURLConnection h = null;
+            String moved = null;
+            try {
+                h = (HttpURLConnection) new URL(b + "/static/manifest.webmanifest").openConnection();
+                h.setInstanceFollowRedirects(false);
+                h.setConnectTimeout(15000);
+                h.setReadTimeout(15000);
+                int code = h.getResponseCode();
+                if (code >= 300 && code < 400) moved = MainActivity.redirectedBase(b, h.getHeaderField("Location"));
+            } catch (Exception e) {
+                break;
+            } finally {
+                if (h != null) h.disconnect();
+            }
+            if (moved == null) break;
+            b = moved;
+        }
+        if (!b.equals(base)) prefs(c).edit().putString("server_url", b).apply();
+        return b;
     }
 
     /** 200 = subido, -1 = ya estaba, -2 = cortado, otro = codigo de error del servidor. */

@@ -50,6 +50,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -338,10 +339,10 @@ public class MainActivity extends Activity {
                 status.setTextColor(0xFF444746);
                 status.setText(Tr.t("Comprobando ") + url + " …");
                 checkServer(url, new CheckResult() {
-                    @Override public void done(boolean ok, String error) {
+                    @Override public void done(boolean ok, String error, String finalUrl) {
                         connect.setEnabled(true);
                         if (ok) {
-                            saveAndOpen(url);
+                            saveAndOpen(finalUrl);
                             return;
                         }
                         status.setTextColor(0xFFB3261E);
@@ -349,7 +350,7 @@ public class MainActivity extends Activity {
                         new AlertDialog.Builder(MainActivity.this)
                                 .setTitle(Tr.t("No se ha podido comprobar"))
                                 .setMessage(error + Tr.t("\n\n¿Quieres usar esta dirección de todas formas?"))
-                                .setPositiveButton(Tr.t("Usarla"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) { saveAndOpen(url); } })
+                                .setPositiveButton(Tr.t("Usarla"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) { saveAndOpen(finalUrl); } })
                                 .setNegativeButton(Tr.t("Corregir"), null)
                                 .show();
                     }
@@ -392,27 +393,45 @@ public class MainActivity extends Activity {
         if (s == null) return null;
         s = s.trim();
         if (s.isEmpty()) return null;
-        if (!s.matches("(?i)^https?://.*")) s = "http://" + s;
+        if (!s.matches("(?i)^https?://.*")) {
+            // Un dominio de internet sin puerto (drive.midominio.com) va por https;
+            // una IP de casa, un nombre local o algo con puerto (192.168.1.50:8090), por http.
+            String h = s.split("[/:]", 2)[0].toLowerCase(Locale.ROOT);
+            boolean isWeb = h.matches("[a-z0-9.-]*[a-z][a-z0-9-]*\\.[a-z]{2,}") && !h.endsWith(".local")
+                    && !h.endsWith(".lan") && !h.endsWith(".home") && !s.matches("^[^/]*:\\d+.*");
+            s = (isWeb ? "https://" : "http://") + s;
+        }
         while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
         Uri u = Uri.parse(s);
         if (u.getHost() == null || u.getHost().isEmpty() || s.contains(" ")) return null;
         return s;
     }
 
-    private interface CheckResult { void done(boolean ok, String error); }
+    private interface CheckResult { void done(boolean ok, String error, String finalUrl); }
 
     /** Pide /static/manifest.webmanifest para comprobar que al otro lado hay un DrivePanel. */
-    private void checkServer(final String base, final CheckResult cb) {
+    private void checkServer(final String typed, final CheckResult cb) {
         final Handler main = new Handler(Looper.getMainLooper());
         new Thread(new Runnable() { @Override public void run() {
             boolean ok = false;
             String error;
+            String base = typed;
             HttpURLConnection c = null;
             try {
-                c = (HttpURLConnection) new URL(base + "/static/manifest.webmanifest").openConnection();
-                c.setConnectTimeout(8000);
-                c.setReadTimeout(8000);
-                int code = c.getResponseCode();
+                // Si la direccion redirige (por ejemplo http -> https detras de Pangolin), se sigue
+                // y se guarda la direccion final: la copia de fotos no puede seguir redirecciones.
+                int code = 0;
+                for (int hop = 0; hop < 4; hop++) {
+                    if (c != null) c.disconnect();
+                    c = (HttpURLConnection) new URL(base + "/static/manifest.webmanifest").openConnection();
+                    c.setInstanceFollowRedirects(false);
+                    c.setConnectTimeout(8000);
+                    c.setReadTimeout(8000);
+                    code = c.getResponseCode();
+                    String moved = code >= 300 && code < 400 ? redirectedBase(base, c.getHeaderField("Location")) : null;
+                    if (moved == null) break;
+                    base = moved;
+                }
                 if (code == 200) {
                     InputStream in = c.getInputStream();
                     byte[] buf = new byte[4096];
@@ -437,8 +456,46 @@ public class MainActivity extends Activity {
             }
             final boolean fOk = ok;
             final String fErr = error;
-            main.post(new Runnable() { @Override public void run() { cb.done(fOk, fErr); } });
+            final String fBase = base;
+            main.post(new Runnable() { @Override public void run() { cb.done(fOk, fErr, fBase); } });
         } }).start();
+    }
+
+    /**
+     * Si una peticion a base + "/static/..." redirige a la misma ruta en otra direccion
+     * (http -> https, otro puerto...), devuelve la nueva base. Si no, null.
+     */
+    static String redirectedBase(String base, String location) {
+        if (location == null || location.isEmpty()) return null;
+        try {
+            URL to = new URL(new URL(base + "/"), location);
+            String p = to.getPath() == null ? "" : to.getPath();
+            int k = p.indexOf("/static/");
+            String prefix = k >= 0 ? p.substring(0, k) : Uri.parse(base).getPath();
+            if (prefix == null) prefix = "";
+            String nb = to.getProtocol() + "://" + to.getAuthority() + prefix;
+            while (nb.endsWith("/")) nb = nb.substring(0, nb.length() - 1);
+            return nb.equalsIgnoreCase(base) ? null : nb;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Si la direccion guardada es http:// pero el servidor ha llevado la web a https:// en el
+     * mismo dominio (Pangolin, proxy...), se guarda la https para que la copia de fotos y el
+     * aviso de disco suban alli (no pueden seguir esa redireccion).
+     */
+    private void upgradeToHttps(String pageUrl) {
+        try {
+            String base = prefs.getString(KEY_URL, null);
+            if (base == null || pageUrl == null || !base.toLowerCase(Locale.ROOT).startsWith("http://")) return;
+            Uri b = Uri.parse(base), p = Uri.parse(pageUrl);
+            if (!"https".equalsIgnoreCase(p.getScheme()) || b.getHost() == null || !b.getHost().equalsIgnoreCase(p.getHost())) return;
+            String nb = "https://" + p.getEncodedAuthority() + (b.getEncodedPath() == null ? "" : b.getEncodedPath());
+            while (nb.endsWith("/")) nb = nb.substring(0, nb.length() - 1);
+            prefs.edit().putString(KEY_URL, nb).apply();
+        } catch (Exception ignored) { }
     }
 
     private void saveAndOpen(String url) {
@@ -514,6 +571,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
+                upgradeToHttps(url);
                 saveCookie(url);
                 view.evaluateJavascript(Carpeta.JS, null);
                 view.evaluateJavascript(versionJs(), null);
@@ -883,7 +941,9 @@ public class MainActivity extends Activity {
     private void saveCookie(String url) {
         try {
             String base = prefs.getString(KEY_URL, null);
-            if (base == null || url == null || !url.startsWith(base)) return;
+            if (base == null || url == null) return;
+            String bh = Uri.parse(base).getHost(), uh = Uri.parse(url).getHost();
+            if (bh == null || !bh.equalsIgnoreCase(uh)) return;
             String c = CookieManager.getInstance().getCookie(base);
             if (c != null && !c.equals(prefs.getString(CopiaFotos.K_COOKIE, null))) {
                 prefs.edit().putString(CopiaFotos.K_COOKIE, c).apply();
