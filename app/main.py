@@ -848,7 +848,7 @@ def _tree_of(p: Path, root: Path, top: str, files: list, dirs: list):
 
 
 @app.get("/api/tree")
-def tree(paths: list[str] = Query(...), share: int | None = None, u=Depends(current_user)):
+def folder_tree(paths: list[str] = Query(...), share: int | None = None, u=Depends(current_user)):
     """Lista de archivos de una o varias carpetas para bajarlas una a una sin .zip."""
     files, dirs = [], []
     for rel in paths:
