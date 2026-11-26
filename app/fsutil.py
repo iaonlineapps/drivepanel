@@ -72,7 +72,7 @@ def kind(name: str, is_dir=False) -> str:
     if ext == ".pdf": return "pdf"
     if ext in (".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"): return "archive"
     if ext in (".doc", ".docx", ".odt", ".rtf"): return "doc"
-    if ext in (".xls", ".xlsx", ".ods", ".csv"): return "sheet"
+    if ext in (".xls", ".xlsx", ".xlsm", ".xlsb", ".ods", ".fods", ".csv", ".tsv"): return "sheet"
     if ext in (".ppt", ".pptx", ".odp"): return "slides"
     if mt.startswith("text") or ext in (".md", ".json", ".log", ".yml", ".yaml", ".py", ".js", ".sh", ".conf", ".ini", ".xml", ".html", ".css"):
         return "text"

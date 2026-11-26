@@ -1,0 +1,12 @@
+/* descargar carpetas tal cual (bajar.js) */
+.dl-choices .dl-opt{display:flex;align-items:flex-start;gap:12px;text-align:left;height:auto;padding:12px 14px;white-space:normal;justify-content:flex-start}
+.dl-opt i{flex:none;margin-top:2px}
+.dl-opt span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.dl-opt small{font-weight:400;font-size:12.5px;line-height:1.35;opacity:.85}
+.dl-panel{right:416px}
+.dl-panel.min .up-list,.dl-panel.min .up-facts,.dl-panel.min .up-now{display:none}
+.dl-panel.min #dlMin{transform:rotate(180deg)}
+.dl-panel.finished #dlCancel{display:none}
+.dl-panel .up-list{max-height:220px}
+#uploads.hidden ~ .dl-panel{right:20px}
+@media (max-width:900px){.dl-panel{right:16px;bottom:auto;top:auto}.dl-panel{bottom:0}#uploads:not(.hidden) ~ .dl-panel{bottom:56px}}

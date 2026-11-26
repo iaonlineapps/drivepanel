@@ -184,7 +184,7 @@ function route() {
   S.phAlbum = null;
   if (view === 'photos' && parts.slice(1).filter(Boolean).length) { const a = parts.slice(1).filter(Boolean).join('/'); S.phAlbum = a === '~' ? '' : a; }
   if (view === 'shared' && parts[1]) { S.share = +parts[1]; S.path = parts.slice(2).filter(Boolean).join('/'); }
-  S.q = ''; $('#search').value = '';
+  S.q = ''; S.qAll = false; $('#search').value = '';
   $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
   const noMode = ['panel', 'settings', 'users'].includes(view);
   $('#gridBtn').classList.toggle('hidden', noMode); $('#listBtn').classList.toggle('hidden', noMode);
@@ -196,7 +196,7 @@ async function load() {
   const c = $('#content');
   try {
     let data;
-    if (S.q) data = await api('/api/search?q=' + enc(S.q));
+    if (S.q) data = await api('/api/search?q=' + enc(S.q) + (searchIn() ? '&path=' + enc(searchIn()) : ''));
     else if (S.view === 'drive') data = await api('/api/list?path=' + enc(S.path));
     else if (S.view === 'recent') data = await api('/api/recent');
     else if (S.view === 'photos') {
@@ -216,11 +216,20 @@ async function load() {
   render();
 }
 
+// Carpeta en la que se busca: la que tienes abierta, salvo que pidas buscar en todo
+const searchIn = () => S.view === 'drive' && S.path && !S.qAll ? S.path : '';
+
 /* ---------- pintar ---------- */
 function crumbs() {
   const el = $('#crumbs');
   const label = t({drive:'Mi unidad', shared:'Compartido conmigo', recent:'Recientes', photos:'Fotos', trash:'Papelera', users:'Usuarios', panel:'Panel de actividad', settings:'Ajustes'}[S.view]);
-  if (S.q) { el.innerHTML = `<button>${t('Resultados de «{q}»', {q: esc(S.q)})}</button>`; return; }
+  if (S.q) {
+    const f = searchIn(), here = S.view === 'drive' && S.path ? S.path.split('/').pop() : '';
+    el.innerHTML = `<button class="qtitle">${f ? t('Resultados de «{q}» en «{f}»', {q: esc(S.q), f: esc(here)}) : t('Resultados de «{q}»', {q: esc(S.q)})}</button>`
+      + (here ? `<button class="scope" id="qScope">${f ? t('Buscar en todo') : t('Buscar solo en «{f}»', {f: esc(here)})}</button>` : '');
+    const b = $('#qScope'); if (b) b.onclick = () => { S.qAll = !S.qAll; load(); };
+    return;
+  }
   let html = `<button data-p="" data-root="1">${label}</button>`;
   if (S.view === 'shared' && S.share) {
     const sh = (S.sharesData?.withme || []).find(x => x.share_id === S.share);
@@ -249,7 +258,7 @@ function render() {
   crumbs();
   $('#emptyTrash').classList.toggle('hidden', !(S.view === 'trash' && S.items.length));
   $('#gridBtn').classList.toggle('on', S.mode === 'grid'); $('#listBtn').classList.toggle('on', S.mode === 'list');
-  $('#search').placeholder = t('Buscar en Mi unidad');
+  $('#search').placeholder = S.view === 'drive' && S.path ? t('Buscar en «{f}»', {f: S.path.split('/').pop()}) : t('Buscar en Mi unidad');
   const c = $('#content');
   let html = '';
   if (S.view === 'shared' && !S.share && !S.q) html += myLinksHtml();
@@ -459,9 +468,12 @@ function openItem(it) {
   if (S.view === 'trash') { S.sel.clear(); S.sel.add(keyOf(it)); updateSel(); return toast(t('Restáuralo para poder abrirlo')); }
   if (it.share_id) return go('shared', '', it.share_id);
   if (it.dir) return S.view === 'shared' ? go('shared', it.path, S.share) : go('drive', it.path);
+  if (window.OFFICE && OFFICE.can(it)) return OFFICE.open(it);  // PDF, Word, Excel y texto: se abren en el editor
   openViewer(it);
 }
 function download(items) {
+  // carpetas (o varios a la vez): elegir entre bajarlas tal cual o en .zip (bajar.js)
+  if ((items.length > 1 || items.some(i => i.dir)) && typeof downloadFolders === 'function') return downloadFolders(items);
   const one = items.length === 1 && !items[0].dir;
   const url = one ? fileUrl(items[0].path, true) : '/api/zip?' + items.map(i => 'paths=' + enc(i.path)).join('&') + shareQ();
   const name = one ? items[0].name : (items.length === 1 ? items[0].name : 'DrivePanel') + '.zip';
@@ -507,8 +519,8 @@ $('#emptyTrash').onclick = async () => { if (await confirmDialog(t('Vaciar papel
 function openCtx(anchor, it) {
   const m = $('#ctx'), trash = S.view === 'trash', own = !S.share && S.view !== 'shared' && !trash, multi = S.sel.size > 1;
   const opts = [];
-  if (!trash && !multi) opts.push(['open', 'open', it.dir ? 'Abrir' : 'Ver']);
-  if (!trash) opts.push(['download', 'download', it.dir || multi ? 'Descargar (.zip)' : 'Descargar']);
+  if (!trash && !multi) opts.push(['open', 'open', it.dir || (window.OFFICE && OFFICE.can(it)) ? 'Abrir' : 'Ver']);
+  if (!trash) opts.push(['download', 'download', 'Descargar']);
   if (own && !multi) opts.push(['share', 'share', 'Compartir'], ['rename', 'edit', 'Cambiar nombre']);
   if (own) opts.push(['move', 'move', 'Mover a…']);
   if ((S.view === 'recent' || S.view === 'photos' || S.q) && !multi) opts.push(['location', 'drive', 'Mostrar ubicación']);
@@ -532,6 +544,8 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.user-wrap')) $('#userMenu').classList.add('hidden');
 });
 document.addEventListener('keydown', e => {
+  // con un documento abierto, las teclas son del editor (Supr no debe borrar archivos)
+  if (window.OFFICE && OFFICE.isOpen()) { if (!$('#dialog').classList.contains('hidden') && e.key === 'Escape') closeDialog(); return; }
   if (!$('#viewer').classList.contains('hidden')) {
     const m = viewerMedia();
     if (e.key === 'Escape') return closeViewer();
@@ -673,6 +687,7 @@ async function showViewer() {
   $('#vPrev').style.visibility = vIdx > 0 ? '' : 'hidden'; $('#vNext').style.visibility = vIdx < vList.length - 1 ? '' : 'hidden';
   if (it.kind === 'image') b.innerHTML = `<img src="${url}" alt="">`;
   else if (it.kind === 'video' || it.kind === 'audio') return showMedia(it, b, url);
+  else if (window.OFFICE && OFFICE.can(it)) { b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>${esc(it.name)}</p><button class="btn primary" id="vOffice">${t('Abrir')}</button></div>`; $('#vOffice').onclick = () => { closeViewer(); OFFICE.open(it); }; }
   else if (it.kind === 'pdf') b.innerHTML = `<iframe src="${url}"></iframe>`;
   else if (it.kind === 'text' && it.size < 2e6) { b.innerHTML = `<pre>${t('Cargando…')}</pre>`; try { const t = await (await fetch(url)).text(); b.querySelector('pre').textContent = t; } catch (e) {} }
   else b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>${t('No hay vista previa para este archivo')}</p><a class="btn primary" href="${fileUrl(it.path, true)}">${t('Descargar ({size})', {size: fmtSize(it.size)})}</a></div>`;
@@ -1123,11 +1138,13 @@ $('#newBtn').onclick = () => $('#newMenu').classList.toggle('hidden');
 $('#newMenu').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#newMenu').classList.add('hidden'); closeSidebar();
   if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
+  if (a === 'newDocx') OFFICE.create('docx'); if (a === 'newXlsx') OFFICE.create('xlsx'); if (a === 'newText') OFFICE.create('text');
 };
 $('#quickBtn').onclick = () => { $('#userMenu').classList.add('hidden'); $('#quickMenu').classList.toggle('hidden'); };
 $('#quickMenu').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#quickMenu').classList.add('hidden');
   if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
+  if (a === 'newDocx') OFFICE.create('docx'); if (a === 'newXlsx') OFFICE.create('xlsx'); if (a === 'newText') OFFICE.create('text');
   if (['panel', 'recent', 'shared', 'trash'].includes(a)) go(a);
   if (a === 'webdav') webdavDialog();
   if (a === 'reload') { load(); loadStats(); toast(t('Actualizado'), 1200); }

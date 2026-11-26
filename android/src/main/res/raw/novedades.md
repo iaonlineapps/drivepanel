@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.5
+- Descargar una carpeta tal cual, sin .zip: toca Descargar en una carpeta y elige «Tal cual, con sus subcarpetas». La app baja los archivos uno a uno a Descargas/<carpeta>, con sus subcarpetas, y en el panel de descargas ves cuántos lleva, el porcentaje y el tiempo que queda. Si un archivo ya está con el mismo tamaño, se salta. Necesita el servidor 1.0.11 o más nuevo.
+
 ## Versión 1.6.4
 - Las pantallas propias de la app (ajustes, descargas, copia de fotos, avisos) también están en inglés. Usan el mismo idioma que elegiste en la web de DrivePanel; si no has elegido ninguno, el del móvil.
 - Aviso de disco lleno: si el disco de tu servidor DrivePanel se está llenando, te llega una notificación al móvil aunque la app esté cerrada. Avisa una sola vez al llegar a «casi lleno» y otra al llegar a «lleno» (los porcentajes se eligen en la web, en Ajustes). Necesita el servidor 1.0.8 o más nuevo.

@@ -94,6 +94,8 @@ nav a.active{background:var(--sel);color:var(--sel-text);font-weight:600}
 .crumbs button{padding:4px 10px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 .crumbs button:hover{background:var(--hover)}
 .crumbs .sep{color:var(--muted);font-size:16px}
+.crumbs .qtitle{max-width:none;white-space:normal;text-align:left}
+.crumbs .scope{font-size:14px;margin-left:8px;border:1px solid var(--line);color:var(--accent)}
 .selbar{display:flex;align-items:center;gap:2px;background:var(--card);border-radius:999px;padding:2px 6px;flex:1}
 .selbar span{padding:0 10px;font-weight:500;margin-right:auto}
 .view-btns{display:flex;gap:4px;align-items:center}

@@ -21,6 +21,7 @@ WebDAV para que el móvil suba las fotos solo.
   archivo, estado de la Raspberry Pi en directo, actividad reciente, archivos más grandes y
   espacio por usuario (este último solo para el administrador).
 - **Fotos** por meses o por álbumes, solo de las carpetas que elijas (como la de la copia del móvil); se cargan poco a poco. **Recientes**, visor de fotos, vídeo, PDF y texto, y descarga en .zip.
+- **Documentos (PDF, Word y Excel):** se abren y se editan dentro de DrivePanel, sin instalar nada más en la Pi (todo lo hace el navegador). En los PDF puedes escribir texto, dibujar o firmar, resaltar, poner imágenes y rellenar formularios. Los Word (.docx) se ven igual que en Word y se pueden editar (títulos, listas, tablas, imágenes, colores). Las hojas de cálculo (.xlsx y .csv) tienen fórmulas, formato de celdas y varias hojas. También se crean documentos nuevos desde **Nuevo** y se puede guardar una copia, descargar o imprimir como PDF.
 - **Papelera** con restaurar, también para lo que se borra por WebDAV.
 - **Compartir** con otro usuario o con un enlace público que puede caducar.
 - **Usuarios:** registro con aprobación del administrador, cuotas, foto de perfil.
@@ -52,6 +53,8 @@ video, audio, PDF and text, .zip download · Trash · sharing with another user 
 public link that can expire · users with admin approval and quotas · WebDAV at `/dav/` · disk full
 warnings in the web, the phone app and (optional) Telegram ·
 installable on the phone (from the browser or with the Android APK).
+
+**Documents:** PDF, Word (.docx) and Excel (.xlsx, .csv) files open and can be edited inside DrivePanel, with nothing extra installed on the Pi (the browser does the work): write, draw or sign, highlight and fill in forms on PDFs; edit Word documents; formulas, cell formatting and several sheets in spreadsheets. New documents can be created from **New**.
 
 **Install:**
 

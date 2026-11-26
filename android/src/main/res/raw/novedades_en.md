@@ -1,5 +1,8 @@
 # What's new in the DrivePanel Android app
 
+## Version 1.6.5
+- Download a folder as it is, without a .zip: tap Download on a folder and choose “As it is, with its subfolders”. The app downloads the files one by one to Download/<folder>, with their subfolders, and the downloads panel shows how many are done, the percentage and the time left. Files already there with the same size are skipped. Needs server 1.0.11 or newer.
+
 ## Version 1.6.4
 - Disk full alert: if your DrivePanel server's disk is filling up, you get a notification on your phone even when the app is closed. It alerts once when it reaches “almost full” and again at “full” (the percentages are set on the website, in Settings). Needs server 1.0.8 or newer.
 - The app's own screens (settings, downloads, photo backup, notifications) are now also in English. They use the same language you chose on the DrivePanel website; if you haven't chosen one, the phone's language.
