@@ -1395,4 +1395,9 @@ def index():
     return FileResponse(APP_DIR / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+# el visor de PDF (pdf.js) usa modulos .mjs y .wasm: que se sirvan con su tipo aunque el
+# sistema no lo tenga en /etc/mime.types (la imagen "slim" de Docker trae muy pocos)
+import mimetypes as _mt
+_mt.add_type("text/javascript", ".mjs")
+_mt.add_type("application/wasm", ".wasm")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")

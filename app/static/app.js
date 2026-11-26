@@ -459,6 +459,7 @@ function openItem(it) {
   if (S.view === 'trash') { S.sel.clear(); S.sel.add(keyOf(it)); updateSel(); return toast(t('Restáuralo para poder abrirlo')); }
   if (it.share_id) return go('shared', '', it.share_id);
   if (it.dir) return S.view === 'shared' ? go('shared', it.path, S.share) : go('drive', it.path);
+  if (window.OFFICE && OFFICE.can(it)) return OFFICE.open(it);  // PDF, Word, Excel y texto: se abren en el editor
   openViewer(it);
 }
 function download(items) {
@@ -507,7 +508,7 @@ $('#emptyTrash').onclick = async () => { if (await confirmDialog(t('Vaciar papel
 function openCtx(anchor, it) {
   const m = $('#ctx'), trash = S.view === 'trash', own = !S.share && S.view !== 'shared' && !trash, multi = S.sel.size > 1;
   const opts = [];
-  if (!trash && !multi) opts.push(['open', 'open', it.dir ? 'Abrir' : 'Ver']);
+  if (!trash && !multi) opts.push(['open', 'open', it.dir || (window.OFFICE && OFFICE.can(it)) ? 'Abrir' : 'Ver']);
   if (!trash) opts.push(['download', 'download', it.dir || multi ? 'Descargar (.zip)' : 'Descargar']);
   if (own && !multi) opts.push(['share', 'share', 'Compartir'], ['rename', 'edit', 'Cambiar nombre']);
   if (own) opts.push(['move', 'move', 'Mover a…']);
@@ -532,6 +533,8 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.user-wrap')) $('#userMenu').classList.add('hidden');
 });
 document.addEventListener('keydown', e => {
+  // con un documento abierto, las teclas son del editor (Supr no debe borrar archivos)
+  if (window.OFFICE && OFFICE.isOpen()) { if (!$('#dialog').classList.contains('hidden') && e.key === 'Escape') closeDialog(); return; }
   if (!$('#viewer').classList.contains('hidden')) {
     const m = viewerMedia();
     if (e.key === 'Escape') return closeViewer();
@@ -673,6 +676,7 @@ async function showViewer() {
   $('#vPrev').style.visibility = vIdx > 0 ? '' : 'hidden'; $('#vNext').style.visibility = vIdx < vList.length - 1 ? '' : 'hidden';
   if (it.kind === 'image') b.innerHTML = `<img src="${url}" alt="">`;
   else if (it.kind === 'video' || it.kind === 'audio') return showMedia(it, b, url);
+  else if (window.OFFICE && OFFICE.can(it)) { b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>${esc(it.name)}</p><button class="btn primary" id="vOffice">${t('Abrir')}</button></div>`; $('#vOffice').onclick = () => { closeViewer(); OFFICE.open(it); }; }
   else if (it.kind === 'pdf') b.innerHTML = `<iframe src="${url}"></iframe>`;
   else if (it.kind === 'text' && it.size < 2e6) { b.innerHTML = `<pre>${t('Cargando…')}</pre>`; try { const t = await (await fetch(url)).text(); b.querySelector('pre').textContent = t; } catch (e) {} }
   else b.innerHTML = `<div class="nopreview">${ic(it.kind, 'big-ic')}<p>${t('No hay vista previa para este archivo')}</p><a class="btn primary" href="${fileUrl(it.path, true)}">${t('Descargar ({size})', {size: fmtSize(it.size)})}</a></div>`;
@@ -1123,11 +1127,13 @@ $('#newBtn').onclick = () => $('#newMenu').classList.toggle('hidden');
 $('#newMenu').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#newMenu').classList.add('hidden'); closeSidebar();
   if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
+  if (a === 'newDocx') OFFICE.create('docx'); if (a === 'newXlsx') OFFICE.create('xlsx'); if (a === 'newText') OFFICE.create('text');
 };
 $('#quickBtn').onclick = () => { $('#userMenu').classList.add('hidden'); $('#quickMenu').classList.toggle('hidden'); };
 $('#quickMenu').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#quickMenu').classList.add('hidden');
   if (a === 'upload') $('#fileInput').click(); if (a === 'uploadDir') $('#dirInput').click(); if (a === 'mkdir') mkdirDialog();
+  if (a === 'newDocx') OFFICE.create('docx'); if (a === 'newXlsx') OFFICE.create('xlsx'); if (a === 'newText') OFFICE.create('text');
   if (['panel', 'recent', 'shared', 'trash'].includes(a)) go(a);
   if (a === 'webdav') webdavDialog();
   if (a === 'reload') { load(); loadStats(); toast(t('Actualizado'), 1200); }

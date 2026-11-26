@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="DrivePanel">
 <link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/office.css">
 <script>
   (function(){try{var t=localStorage.getItem('dp-theme')||'auto';document.documentElement.dataset.theme=t;var a=localStorage.getItem('dp-accent');if(a)document.documentElement.dataset.accent=a;}catch(e){}})();
 </script>
@@ -43,6 +44,10 @@
         <button data-act="uploadDir"><i data-i="folderUp"></i>Subir carpeta</button>
         <hr>
         <button data-act="mkdir"><i data-i="folderAdd"></i>Nueva carpeta</button>
+        <hr>
+        <button data-act="newDocx"><i data-i="doc" class="ic-doc"></i>Documento de Word</button>
+        <button data-act="newXlsx"><i data-i="sheet" class="ic-sheet"></i>Hoja de cálculo</button>
+        <button data-act="newText"><i data-i="text" class="ic-text"></i>Documento de texto</button>
       </div>
     </div>
     <nav id="nav">
@@ -77,6 +82,8 @@
           <button data-act="upload"><i data-i="upload"></i>Subir archivos</button>
           <button data-act="uploadDir"><i data-i="folderUp"></i>Subir carpeta</button>
           <button data-act="mkdir"><i data-i="folderAdd"></i>Nueva carpeta</button>
+          <button data-act="newDocx"><i data-i="doc" class="ic-doc"></i>Documento de Word</button>
+          <button data-act="newXlsx"><i data-i="sheet" class="ic-sheet"></i>Hoja de cálculo</button>
           <hr>
           <div class="menu-label">Ir a</div>
           <button data-act="panel"><i data-i="chart"></i>Panel de actividad</button>
@@ -171,6 +178,21 @@
   <button id="vNext" class="v-nav right"><i data-i="right"></i></button>
 </div>
 
+<!-- Documentos: PDF, Word, Excel y texto (office.js) -->
+<div id="office" class="office hidden">
+  <div class="of-top">
+    <button id="ofClose" class="icon-btn" title="Cerrar"><i data-i="left"></i></button>
+    <i id="ofIcon"></i>
+    <div class="of-title"><b id="ofName"></b><span id="ofState"></span></div>
+    <span class="grow"></span>
+    <button id="ofSave" class="btn primary small"><i data-i="check"></i><span>Guardar</span></button>
+    <div class="of-more-wrap"><button id="ofMore" class="icon-btn" title="Más opciones"><i data-i="more"></i></button>
+      <div id="ofMenu" class="menu right hidden"></div></div>
+  </div>
+  <div id="ofTools" class="of-tools"></div>
+  <div id="ofBody" class="of-body"></div>
+</div>
+
 <!-- Diálogo genérico -->
 <div id="dialog" class="dialog-wrap hidden"><div class="dialog" id="dialogBox"></div></div>
 <div id="ctx" class="menu ctx hidden"></div>
@@ -181,5 +203,6 @@
 <input id="dirInput" type="file" webkitdirectory multiple hidden>
 <script src="/static/i18n.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/office.js"></script>
 </body>
 </html>

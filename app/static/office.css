@@ -1,0 +1,95 @@
+/* DrivePanel - documentos (PDF, Word, Excel y texto). Ver office.js */
+.office{position:fixed;inset:0;z-index:85;background:var(--bg);display:flex;flex-direction:column}
+body.office-open{overflow:hidden}
+body.office-open>#app{display:none}  /* así nada de detrás ensancha la pantalla en el móvil */
+.of-top{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);min-height:56px}
+.of-top #ofIcon{width:26px;height:26px;flex:none}
+.of-top #ofIcon svg{width:100%;height:100%;fill:currentColor}
+.of-title{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.of-title b{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-title span{font-size:12px;color:var(--muted);min-height:15px}
+.of-title span.dirty{color:#e37400}
+.of-top .grow{flex:1}
+.of-top .btn{display:inline-flex;align-items:center;gap:6px}
+.of-top .btn i{width:18px;height:18px}
+.of-more-wrap{position:relative}
+.of-more-wrap .menu{top:44px;right:0}
+.of-tools{display:flex;align-items:center;gap:2px;padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin;min-height:44px;flex:none}
+.of-tools:empty{display:none}
+.of-tools .tb{display:inline-flex;align-items:center;gap:6px;height:36px;min-width:36px;padding:0 8px;border-radius:8px;color:var(--text);flex:none;justify-content:center}
+.of-tools .tb:hover{background:var(--hover)}
+.of-tools .tb.on{background:var(--accent-soft);color:var(--accent)}
+.of-tools .tb span{font-size:13px}
+.of-tools .sep{width:1px;height:24px;background:var(--line);margin:0 4px;flex:none}
+.of-tools .tb-txt{font-size:13px;color:var(--muted);padding:0 8px;white-space:nowrap;flex:none}
+.of-tools .tb-txt.hint{white-space:normal;flex:1 1 auto;line-height:1.3}
+.of-tools .tb-sel{height:32px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:0 6px;font:inherit;font-size:13px;flex:none}
+.of-tools .tb.color{position:relative;cursor:pointer}
+.of-tools .tb.color input{width:26px;height:26px;border:0;padding:0;background:none;cursor:pointer}
+.of-tools .tb.color i + input{width:22px;height:22px}
+.of-body{flex:1;position:relative;min-height:0;overflow:hidden}
+.of-loading,.of-fail{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:8px;text-align:center;padding:16px}
+.of-fail .big-ic{width:72px;height:72px}
+.of-fail .btn{text-decoration:none}
+.of-scroll{position:absolute;inset:0;overflow:auto;background:#e8eaed;-webkit-overflow-scrolling:touch}
+:root[data-theme="dark"] .of-scroll{background:#2b2c2f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .of-scroll{background:#2b2c2f}}
+
+/* Word: vista */
+.of-docview .docx-wrapper{background:transparent!important;padding:20px 8px!important}
+.of-docview .docx-wrapper>section.docx{box-shadow:0 1px 4px rgba(0,0,0,.25)!important;margin-bottom:20px!important}
+/* Word: edición */
+.of-note{display:flex;gap:10px;align-items:flex-start;max-width:816px;margin:14px auto 0;padding:10px 14px;border-radius:10px;background:var(--accent-soft);color:var(--text);font-size:13px;line-height:1.4}
+.of-note i{flex:none;color:var(--accent)}
+.of-page{background:#fff;color:#111;width:816px;max-width:calc(100% - 16px);min-height:1056px;margin:16px auto 40px;padding:72px 80px;box-shadow:0 1px 4px rgba(0,0,0,.25);
+  font:11pt/1.45 Calibri,Carlito,"Segoe UI",Arial,sans-serif;outline:none;word-wrap:break-word;color-scheme:light}
+.of-page h1{font-size:20pt;font-weight:600;margin:.6em 0 .3em;color:#1f3864}
+.of-page h1.title{font-size:26pt;font-weight:400;color:#111}
+.of-page h2{font-size:15pt;font-weight:600;margin:.6em 0 .3em;color:#2f5496}
+.of-page h3{font-size:12.5pt;font-weight:600;margin:.6em 0 .3em;color:#1f3864}
+.of-page p{margin:0 0 .6em}
+.of-page blockquote{margin:.6em 2em;font-style:italic;color:#404040;border-left:3px solid #4472c4;padding-left:12px}
+.of-page table{border-collapse:collapse;width:100%;margin:.6em 0}
+.of-page td,.of-page th{border:1px solid #9e9e9e;padding:4px 8px;vertical-align:top;min-width:30px}
+.of-page img{max-width:100%;height:auto}
+.of-page a{color:#0563c1}
+@media (max-width:700px){.of-page{padding:28px 20px;min-height:70vh;margin-top:8px}}
+
+/* PDF */
+.of-pdf{position:absolute;inset:0;background:#e8eaed}
+:root[data-theme="dark"] .of-pdf{background:#2b2c2f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .of-pdf{background:#2b2c2f}}
+.of-pdf-c{position:absolute;inset:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.of-pdf-c .pdfViewer{padding:12px 0}
+.of-pdf-c .pdfViewer .page{margin:0 auto 12px;border:0;box-shadow:0 1px 4px rgba(0,0,0,.25);box-sizing:content-box}
+.of-pdf-c.drawing{touch-action:none}
+
+/* hoja de cálculo */
+.of-sheet{position:absolute;inset:0;background:#fff;color:#222;color-scheme:light}
+.of-sheet .x-spreadsheet{height:100%}
+
+/* texto */
+.of-textwrap{position:absolute;inset:0;padding:12px;background:var(--bg)}
+.of-text{width:100%;height:100%;resize:none;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--panel);color:var(--text);
+  font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;outline:none;tab-size:4}
+
+@media (max-width:700px){
+  .of-top{gap:4px;padding:6px}
+  .of-top .btn span{display:none}
+  .of-top .btn{padding:8px 10px}
+}
+
+/* imprimir: solo el documento */
+@media print{
+  body.of-printing>*:not(#office){display:none!important}
+  body.of-printing #office{position:static;display:block;background:#fff}
+  body.of-printing .of-top,body.of-printing .of-tools,body.of-printing .of-note{display:none!important}
+  body.of-printing .of-body,body.of-printing .of-scroll,body.of-printing .of-textwrap{position:static;overflow:visible;background:#fff}
+  body.of-printing .of-page{box-shadow:none;margin:0;padding:0;width:auto;max-width:none;min-height:0}
+  body.of-printing #ofDocx{zoom:1!important}
+  body.of-printing .of-docview .docx-wrapper{padding:0!important}
+  body.of-printing .of-docview section.docx{box-shadow:none!important;margin:0!important}
+  body.of-printing .of-text{border:0;height:auto;overflow:visible}
+}
+/* la hoja esconde su barra en móviles; aquí se deja visible (tiene botón «Más» para lo que no cabe) */
+.of-sheet .x-spreadsheet-toolbar{display:block!important}
