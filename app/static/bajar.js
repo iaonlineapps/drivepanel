@@ -12,6 +12,10 @@
    El .zip de siempre sigue estando como opción. */
 
 const FS_OK = typeof window.showDirectoryPicker === 'function' && window.isSecureContext !== false;
+// Chrome o Edge en el ordenador abriendo DrivePanel por http://IP (sin https): el navegador
+// esconde showDirectoryPicker. Se activa una vez con chrome://flags y ya funciona.
+const CHROMIUM_PC = !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) && /Chrome\//.test(navigator.userAgent);
+const FS_FLAG = !FS_OK && CHROMIUM_PC && window.isSecureContext === false;
 const APP_OK = () => !!(window.DPAndroid && typeof window.DPAndroid.downloadFolder === 'function');
 const DL_PARALLEL = 3, DL_TRIES = 6;
 const DL = {jobs: [], queue: [], active: 0, total: 0, done: 0, skipped: 0, failed: [], bytesTotal: 0, bytesDone: 0,
@@ -37,6 +41,7 @@ async function downloadFolders(items, opts = {}) {
   let main;
   if (APP_OK()) main = opt('app', 'folder', t('Tal cual, con sus subcarpetas'), t('Archivo a archivo, como al subirla. Se guarda en Descargas/{name} del móvil y se ve en el panel de descargas.', {name: esc(name)}), true);
   else if (FS_OK) main = opt('fs', 'folder', t('Tal cual, con sus subcarpetas'), t('Archivo a archivo, como al subirla. Eliges en qué carpeta de tu equipo se guarda. Si se corta, vuelve a descargarla en el mismo sitio y sigue por donde iba.'), true);
+  else if (FS_FLAG) main = opt('flag', 'folder', t('Tal cual, con sus subcarpetas'), t('Archivo a archivo, como al subirla. Como entras por http:// (sin candado), Chrome no lo deja hasta que lo actives una vez. Te explico cómo: es un minuto.'), true);
   else if (typeof ANDROID_WEB !== 'undefined' && ANDROID_WEB) main = opt('intent', 'folder', t('Tal cual, con la app DrivePanel'), t('La app la baja archivo a archivo con sus subcarpetas a Descargas/{name}. Necesitas la app 1.6.5 o más nueva.', {name: esc(name)}), true);
   else main = opt('seq', 'download', t('Archivo a archivo (sin subcarpetas)'), t('Este navegador no deja crear carpetas: los archivos se guardan todos juntos en Descargas. Para conservar las subcarpetas usa Chrome o Edge en el ordenador, o la app de Android.'), false);
   const p = dialog(`<h3>${t('Descargar {name}', {name: esc(name)})}</h3><p>${info}</p>
@@ -51,6 +56,7 @@ async function downloadFolders(items, opts = {}) {
   if (c === 'app') return toApp(tree, name, share);
   if (c === 'intent') return location.href = folderIntent(items, share, name);
   if (c === 'seq') return sequential(tree, share);
+  if (c === 'flag') return flagHelp();
   if (c === 'fs') return toDisk(tree, share, name);
 }
 
@@ -78,6 +84,23 @@ function folderIntent(items, share, name) {
     downloadFolders(paths.map(p => ({path: p, name: p.split('/').pop(), dir: true})), {share, auto: true});
   }, 500);
 })();
+
+/* ---------- Chrome/Edge por http://: activar la opcion una vez ---------- */
+function flagHelp() {
+  const edge = /Edg\//.test(navigator.userAgent), flags = (edge ? 'edge' : 'chrome') + '://flags/#unsafely-treat-insecure-origin-as-secure';
+  const row = (txt, id) => `<div class="dl-copy"><code>${esc(txt)}</code><button class="btn small" data-copy="${id}">${t('Copiar')}</button></div>`;
+  dialog(`<h3>${t('Activar la descarga tal cual en {b}', {b: edge ? 'Edge' : 'Chrome'})}</h3>
+    <p>${t('Solo hay que hacerlo una vez en este ordenador.')}</p>
+    <ol class="dl-steps">
+      <li>${t('Copia esto, pégalo en la barra de direcciones de una pestaña nueva y pulsa Intro:')}${row(flags, 'f')}</li>
+      <li>${t('En el recuadro de «Insecure origins treated as secure» pega esta dirección:')}${row(location.origin, 'o')}</li>
+      <li>${t('A la derecha cambia «Disabled» por «Enabled» y pulsa el botón «Relaunch» de abajo.')}</li>
+      <li>${t('Vuelve aquí y pulsa otra vez Descargar en la carpeta.')}</li>
+    </ol>
+    <p style="font-size:13px;color:var(--muted)">${t('Esto le dice al navegador que tu DrivePanel de casa es de confianza aunque no tenga https. Solo afecta a esta dirección.')}</p>
+    <div class="actions"><button class="btn primary" data-close>${t('Entendido')}</button></div>`);
+  $('#dialogBox').querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { copy(b.dataset.copy === 'f' ? flags : location.origin); b.textContent = t('Copiado'); });
+}
 
 /* ---------- otros navegadores: uno detrás de otro ---------- */
 async function sequential(tree, share) {
