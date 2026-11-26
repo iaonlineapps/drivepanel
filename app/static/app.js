@@ -62,6 +62,7 @@ const P = {
   bell:'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z',
   info:'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z',
   storage:'M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z',
+  personAdd:'M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
   cloudUp:'M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z',
 };
 P.text = P.doc; P.slides = P.sheet;
@@ -95,7 +96,41 @@ const keyOf = it => S.view === 'trash' ? String(it.id) : (it.share_id ? 's' + it
 
 /* ---------- acceso ---------- */
 let registering = false;
-function showAuth() { $('#app').classList.add('hidden'); $('#auth').classList.remove('hidden'); }
+function showAuth(adding = false) {
+  $('#app').classList.add('hidden'); $('#auth').classList.remove('hidden');
+  $('#authCancel').classList.toggle('hidden', !adding);
+  if (adding) { $('#authUser').value = ''; $('#authPass').value = ''; $('#authMsg').textContent = ''; }
+  paintAuthAccounts(adding);
+}
+/* ---------- cambio rápido de usuario ----------
+   El servidor recuerda las cuentas abiertas en este dispositivo (en una cookie que el
+   JavaScript no puede leer) y deja pasar de una a otra sin volver a poner la contraseña. */
+async function getAccounts() { try { return (await api('/api/accounts')).accounts || []; } catch (e) { return []; } }
+async function paintAuthAccounts(adding) {
+  const box = $('#authAccounts'), list = adding ? [] : await getAccounts();
+  box.classList.toggle('hidden', !list.length);
+  $('#authTitle').textContent = adding ? t('Añadir otra cuenta') : list.length ? t('Elige una cuenta') : t('Iniciar sesión');
+  box.innerHTML = list.map(a => `<div class="acc-row"><button type="button" class="acc-pick" data-user="${esc(a.username)}">${avatarHtml(a.username, a.avatar, 'sm')}<span>${esc(a.username)}</span></button>` +
+    `<button type="button" class="icon-btn acc-forget" data-forget="${esc(a.username)}" title="${esc(t('Quitar de este dispositivo'))}">${svg('close')}</button></div>`).join('') +
+    (list.length ? `<div class="acc-or">${esc(t('o entra con otra cuenta'))}</div>` : '');
+}
+async function switchAccount(username) {
+  try { await api('/api/accounts/switch', {json: {username}}); }
+  catch (err) { toast(err.message, 5000); showAuth(); $('#authUser').value = username; $('#authPass').focus(); return; }
+  location.hash = '#/drive'; location.reload();
+}
+$('#authAccounts').onclick = async e => {
+  const f = e.target.closest('[data-forget]');
+  if (f) { await api('/api/accounts/forget', {json: {username: f.dataset.forget}}).catch(() => {}); paintAuthAccounts(false); return; }
+  const p = e.target.closest('[data-user]'); if (p) switchAccount(p.dataset.user);
+};
+$('#authCancel').onclick = e => { e.preventDefault(); start(); };
+async function paintMenuAccounts() {
+  const list = await getAccounts(), box = $('#menuAccounts');
+  box.innerHTML = (list.length ? `<div class="menu-label">${esc(t('Cambiar a'))}</div>` : '') + list.map(a => `<button data-user="${esc(a.username)}">${avatarHtml(a.username, a.avatar, 'sm')}<span>${esc(a.username)}</span></button>`).join('');
+  box.classList.toggle('hidden', !list.length);
+  $('#logoutAllBtn').classList.toggle('hidden', !list.length);
+}
 $('#authSwitch').onclick = e => {
   e.preventDefault(); registering = !registering;
   $('#authTitle').textContent = registering ? t('Crear cuenta') : t('Iniciar sesión');
@@ -119,8 +154,10 @@ $('#authForm').onsubmit = async e => {
       if (r.admin) { $('#authSwitch').click(); m.className = 'auth-msg ok'; m.textContent = r.msg; }
       return;
     }
+    const adding = !$('#authCancel').classList.contains('hidden');
     await api('/api/login', {json: {username, password}});
     $('#authPass').value = '';
+    if (adding) { location.hash = '#/drive'; location.reload(); return; }
     start();
   } catch (err) { m.textContent = err.message; }
 };
@@ -1149,10 +1186,13 @@ $('#quickMenu').onclick = e => {
   if (a === 'webdav') webdavDialog();
   if (a === 'reload') { load(); loadStats(); toast(t('Actualizado'), 1200); }
 };
-$('#userBtn').onclick = () => { $('#quickMenu').classList.add('hidden'); $('#userMenu').classList.toggle('hidden'); };
+$('#userBtn').onclick = () => { $('#quickMenu').classList.add('hidden'); $('#userMenu').classList.toggle('hidden'); if (!$('#userMenu').classList.contains('hidden')) paintMenuAccounts(); };
 $('#userMenu').onclick = async e => {
+  const sw = e.target.closest('[data-user]'); if (sw) { $('#userMenu').classList.add('hidden'); return switchAccount(sw.dataset.user); }
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return; $('#userMenu').classList.add('hidden');
   if (a === 'logout') { await api('/api/logout', {method: 'POST'}); S.me = null; showAuth(); }
+  if (a === 'logoutAll') { await api('/api/logout', {json: {all: true}}); S.me = null; showAuth(); }
+  if (a === 'addAccount') showAuth(true);
   if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'home') homeDialog();
   if (a === 'settings') go('settings');
   if (a === 'avatar') $('#avatarInput').click();
