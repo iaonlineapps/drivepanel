@@ -395,7 +395,8 @@ table.list{width:100%;border-collapse:collapse}
   .vbars{height:150px}
 }
 
-.side-version{padding:10px 6px 2px;font-size:11px;color:var(--muted);text-align:center;opacity:.85}
+.side-version{padding:10px 6px 2px;font-size:11px;color:var(--muted);text-align:center;opacity:.85;cursor:pointer;border-radius:8px}
+.side-version:hover{color:var(--accent);opacity:1}
 .menu-version{font-size:12px;color:var(--muted);text-align:center;white-space:pre-line;line-height:1.5}
 
 
@@ -533,3 +534,14 @@ table.list{width:100%;border-collapse:collapse}
 .acc-forget{opacity:.6}.acc-forget:hover{opacity:1}
 .acc-or{text-align:center;font-size:13px;color:var(--muted);margin:6px 0 0}
 .menu-accounts button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* novedades tras actualizar */
+.dialog .news{font-size:14px;line-height:1.5}
+.news-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.news-head svg{width:26px;height:26px;color:var(--accent);flex:none}
+.news-head h3{margin:0}
+.dialog .news h4{margin:14px 0 4px;font-size:15px;font-weight:600}
+.dialog .news ul{margin:4px 0 6px;padding-left:20px}
+.dialog .news li{margin:5px 0}
+.dialog .news li code{display:inline;padding:1px 5px;margin:0;font-size:12px}
+.news-tag{font-size:11px;font-weight:500;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 8px;vertical-align:2px}

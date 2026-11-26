@@ -175,7 +175,7 @@ async function start() {
   if (S.me.chunk_mb) CHUNK = S.me.chunk_mb * 1024 * 1024;
   $$('.admin-only').forEach(e => e.classList.toggle('hidden', !S.me.is_admin));
   updateBadge(S.me.pending); paintDiskAlert(S.me.disk_alert);
-  route(); loadStats();
+  route(); loadStats(); newsIfUpdated();
 }
 // Versión del servidor y, si se abre desde la app de Android, también la de la app
 function paintVersion() {
@@ -183,6 +183,28 @@ function paintVersion() {
   const txt = `DrivePanel ${S.me.version || '?'}` + (app ? ` · ${t('App Android')} ${app}` : '');
   $('#sideVersion').textContent = txt; $('#menuVersion').textContent = txt.replace(' · ', '\n');
 }
+/* ---------- novedades: tras actualizar el servidor se enseñan una vez (navegador y app) ---------- */
+const verNewer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+const newsMd = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>');
+async function showNews(since) {
+  const d = await api('/api/novedades?lang=' + LANG);
+  // since: la versión que se vio la última vez ('' = nunca se vio ninguna: solo la actual)
+  const list = since === undefined ? d.novedades : d.novedades.filter(n => since ? verNewer(n.version, since) : n.version === d.version);
+  if (!list.length) return;
+  const title = since !== undefined ? t('DrivePanel se ha actualizado a la {v}', {v: esc(d.version)}) : t('Novedades de DrivePanel');
+  return dialog(`<div class="news"><div class="news-head">${ic('bolt')}<h3>${title}</h3></div>` +
+    (since !== undefined ? `<p>${t('Esto es lo nuevo:')}</p>` : '') +
+    list.map(n => `<h4>${t('Versión {v}', {v: esc(n.version)})}${n.version === d.version ? ` <span class="news-tag">${t('la tuya')}</span>` : ''}</h4>
+      <ul>${n.items.map(i => `<li>${newsMd(i)}</li>`).join('')}</ul>`).join('') +
+    `</div><div class="actions"><button class="btn primary" data-close>${t('Entendido')}</button></div>`);
+}
+function newsIfUpdated() {
+  const k = 'dp-visto', v = S.me.version; if (!v || v === '?') return;
+  let seen = null; try { seen = localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return; }
+  if (seen === v || (seen && !verNewer(v, seen))) return;
+  showNews(seen || '').catch(() => {});
+}
+$('#sideVersion').onclick = () => showNews().catch(() => {});
 const AV_COLORS = ['#1a73e8','#e8710a','#188038','#a142f4','#d93025','#12b5cb','#e52592','#9334e6'];
 function avatarHtml(name, ver, cls = '') {
   if (ver) return `<span class="avatar ${cls}" style="background-image:url('/api/avatar/${enc(name)}?v=${ver}')"></span>`;
@@ -1195,6 +1217,7 @@ $('#userMenu').onclick = async e => {
   if (a === 'addAccount') showAuth(true);
   if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'home') homeDialog();
   if (a === 'settings') go('settings');
+  if (a === 'news') showNews().catch(() => {});
   if (a === 'avatar') $('#avatarInput').click();
   if (a === 'avatarDel') { await api('/api/avatar', {method: 'DELETE'}); S.me.avatar = 0; paintAvatars(); toast(t('Foto quitada')); }
 };
