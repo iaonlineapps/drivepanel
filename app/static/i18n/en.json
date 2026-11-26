@@ -636,5 +636,14 @@
  "{files} archivos en {folders} subcarpetas · {size}": "{files} files in {folders} subfolders · {size}",
  "{n} archivos no se han podido descargar": "{n} files couldn't be downloaded",
  "{n} descargados": "{n} downloaded",
- "«{name}» descargada: {n} archivos en {time}": "“{name}” downloaded: {n} files in {time}"
+ "«{name}» descargada: {n} archivos en {time}": "“{name}” downloaded: {n} files in {time}",
+ "Archivo a archivo, como al subirla. Como entras por http:// (sin candado), Chrome no lo deja hasta que lo actives una vez. Te explico cómo: es un minuto.": "File by file, just like uploading it. Because you're on http:// (no padlock), Chrome won't allow it until you turn it on once. It takes a minute; here's how.",
+ "Activar la descarga tal cual en {b}": "Turn on “as it is” downloads in {b}",
+ "Solo hay que hacerlo una vez en este ordenador.": "You only need to do this once on this computer.",
+ "Copia esto, pégalo en la barra de direcciones de una pestaña nueva y pulsa Intro:": "Copy this, paste it into the address bar of a new tab and press Enter:",
+ "En el recuadro de «Insecure origins treated as secure» pega esta dirección:": "In the “Insecure origins treated as secure” box, paste this address:",
+ "A la derecha cambia «Disabled» por «Enabled» y pulsa el botón «Relaunch» de abajo.": "On the right, change “Disabled” to “Enabled” and press the “Relaunch” button at the bottom.",
+ "Vuelve aquí y pulsa otra vez Descargar en la carpeta.": "Come back here and press Download on the folder again.",
+ "Esto le dice al navegador que tu DrivePanel de casa es de confianza aunque no tenga https. Solo afecta a esta dirección.": "This tells the browser your home DrivePanel is trusted even without https. It only affects this address.",
+ "Entendido": "Got it"
 }

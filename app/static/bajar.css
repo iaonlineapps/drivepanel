@@ -10,3 +10,6 @@
 .dl-panel .up-list{max-height:220px}
 #uploads.hidden ~ .dl-panel{right:20px}
 @media (max-width:900px){.dl-panel{right:16px;bottom:auto;top:auto}.dl-panel{bottom:0}#uploads:not(.hidden) ~ .dl-panel{bottom:56px}}
+.dl-steps{padding-left:20px;margin:12px 0;display:flex;flex-direction:column;gap:12px;line-height:1.45}
+.dl-copy{display:flex;align-items:center;gap:8px;margin-top:6px}
+.dl-copy code{flex:1;min-width:0;overflow-wrap:anywhere;background:var(--card);border-radius:8px;padding:7px 10px;font-size:12.5px}
