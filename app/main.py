@@ -1437,9 +1437,20 @@ from .webdav import dav_app  # noqa: E402
 app.mount("/dav", dav_app)
 
 
+_STATIC_REF = re.compile(r'((?:src|href)="/static/[^"?]+\.(?:js|css))"')
+
+
+def _index_html() -> str:
+    """index.html con ?v= en sus .js y .css: tras actualizar, el navegador (y la app de
+    Android) cargan los nuevos y no los que tenian guardados de la version anterior."""
+    st = APP_DIR / "static"
+    tag = VERSION + "-" + str(int(max(f.stat().st_mtime for f in st.glob("*.*"))))
+    return _STATIC_REF.sub(lambda m: f'{m.group(1)}?v={tag}"', (st / "index.html").read_text(encoding="utf-8"))
+
+
 @app.api_route("/", methods=["GET", "HEAD"])
 def index():
-    return FileResponse(APP_DIR / "static" / "index.html", headers={"Cache-Control": "no-cache"})
+    return HTMLResponse(_index_html(), headers={"Cache-Control": "no-cache"})
 
 
 # el visor de PDF (pdf.js) usa modulos .mjs y .wasm: que se sirvan con su tipo aunque el
