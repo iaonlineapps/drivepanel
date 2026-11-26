@@ -1,6 +1,6 @@
 {
-  "name": "DrivePanel",
-  "short_name": "DrivePanel",
+  "name": "DrivePanel Web",
+  "short_name": "DrivePanel Web",
   "description": "Tu nube privada en la Raspberry Pi",
   "lang": "es",
   "start_url": "/",
@@ -9,9 +9,9 @@
   "background_color": "#f8fafd",
   "theme_color": "#1a73e8",
   "icons": [
-    {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
-    {"src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
-    {"src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml"}
+    {"src": "/static/icons/icon-web-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icons/icon-web-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/static/icons/maskable-web-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    {"src": "/static/icons/icon-web.svg", "sizes": "any", "type": "image/svg+xml"}
   ]
 }
