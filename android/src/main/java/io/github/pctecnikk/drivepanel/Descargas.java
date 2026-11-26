@@ -47,6 +47,10 @@ final class Descargas {
     static final class Item {
         long id;
         String name, url, userAgent, mime;
+        // Descarga de una carpeta tal cual: ruta dentro de Descargas (Carpeta/sub/archivo) y tamano
+        String rel;
+        boolean folder;
+        long size = -1;
         // Solo en memoria
         long lastBytes = -1, lastTime;
         double speed; // bytes/s, suavizada
@@ -63,6 +67,9 @@ final class Descargas {
             o.put("id", id); o.put("name", name); o.put("url", url);
             o.put("ua", userAgent == null ? "" : userAgent); o.put("mime", mime == null ? "" : mime);
             o.put("st", status);
+            if (rel != null) o.put("rel", rel);
+            if (folder) o.put("folder", true);
+            if (size >= 0) o.put("size", size);
             return o;
         }
 
@@ -71,6 +78,9 @@ final class Descargas {
             it.id = o.optLong("id", -1); it.name = o.optString("name"); it.url = o.optString("url");
             it.userAgent = o.optString("ua"); it.mime = o.optString("mime");
             it.status = o.optInt("st", 0);
+            it.rel = o.has("rel") ? o.optString("rel") : null;
+            it.folder = o.optBoolean("folder", false);
+            it.size = o.optLong("size", -1);
             it.notified = it.status == DownloadManager.STATUS_SUCCESSFUL || it.status == DownloadManager.STATUS_FAILED;
             return it;
         }
@@ -108,6 +118,7 @@ final class Descargas {
         cMuted = dark ? 0xFFA8ABAF : 0xFF5F6368;
         cLine = dark ? 0xFF44474A : 0xFFE3E3E3;
         load();
+        loadFolder();
         build();
     }
 
@@ -289,7 +300,8 @@ final class Descargas {
     }
 
     private void clearFinished() {
-        boolean active = false;
+        if (fTotal > 0 && fQueue.isEmpty() && !folderActive()) { fTotal = 0; fName = null; saveFolder(); }
+        boolean active = fTotal > 0;
         for (int i = items.size() - 1; i >= 0; i--) {
             Item it = items.get(i);
             if (isActive(it.status)) { active = true; continue; }
@@ -306,6 +318,118 @@ final class Descargas {
 
     private static boolean isActive(int st) {
         return st == DownloadManager.STATUS_PENDING || st == DownloadManager.STATUS_RUNNING || st == DownloadManager.STATUS_PAUSED;
+    }
+
+    // ------------------------------------------------------------------ Carpetas tal cual
+
+    /** Archivos de la carpeta que aun no se han pedido; se piden de pocos en pocos. */
+    private final java.util.ArrayDeque<Item> fQueue = new java.util.ArrayDeque<>();
+    private String fName;
+    private int fTotal, fDoneN, fSkipped, fFailed;
+    private long fBytesTotal, fBytesDone;
+    private static final int F_PARALLEL = 3;
+
+    /** Descargar una carpeta entera: cada archivo a Descargas/Carpeta/subcarpetas. */
+    void addFolder(String name, List<Item> files) {
+        if (fTotal > 0 && (!fQueue.isEmpty() || folderActive())) {
+            Toast.makeText(a, Tr.t("Ya hay una carpeta descargándose; espera a que termine"), Toast.LENGTH_LONG).show();
+            return;
+        }
+        fQueue.clear();
+        fName = name; fTotal = files.size(); fDoneN = fSkipped = fFailed = 0; fBytesTotal = fBytesDone = 0;
+        for (Item it : files) { fBytesTotal += Math.max(0, it.size); fQueue.add(it); }
+        saveFolder();
+        setMinimized(false);
+        Toast.makeText(a, Tr.t("Descargando la carpeta «") + name + Tr.t("» en Descargas"), Toast.LENGTH_SHORT).show();
+        refresh();
+        start();
+    }
+
+    private boolean folderActive() {
+        for (Item it : items) if (it.folder && isActive(it.status)) return true;
+        return false;
+    }
+
+    /** Pide los siguientes archivos de la carpeta. Devuelve true si la carpeta sigue en marcha. */
+    private boolean feed() {
+        if (fTotal == 0) return false;
+        int act = 0;
+        for (Item it : items) if (it.folder && isActive(it.status)) act++;
+        boolean changed = false;
+        while (act < F_PARALLEL && !fQueue.isEmpty()) {
+            Item it = fQueue.poll();
+            changed = true;
+            java.io.File f = new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), it.rel);
+            if (it.size >= 0 && f.isFile() && f.length() == it.size) { fSkipped++; fBytesDone += it.size; continue; }  // ya estaba
+            long id = enqueuer.enqueue(it);
+            if (id < 0) { fFailed++; continue; }
+            it.id = id;
+            it.status = DownloadManager.STATUS_PENDING;
+            items.add(it);
+            addRow(it);
+            act++;
+        }
+        if (changed) { save(); saveFolder(); }
+        boolean going = !fQueue.isEmpty() || act > 0;
+        if (!going && fName != null && !fDoneShown) {
+            fDoneShown = true;
+            int failed = 0;
+            for (Item it : items) if (it.folder && it.status != DownloadManager.STATUS_SUCCESSFUL) failed++;
+            Toast.makeText(a, failed > 0 ? Tr.t("Carpeta «") + fName + Tr.t("» descargada con ") + failed + Tr.t(" errores")
+                    : Tr.t("Carpeta «") + fName + Tr.t("» descargada en Descargas"), Toast.LENGTH_LONG).show();
+        }
+        if (going) fDoneShown = false;
+        return going;
+    }
+    private boolean fDoneShown;
+
+    private void folderFileDone(Item it, long bytes) {
+        fDoneN++;
+        fBytesDone += Math.max(0, bytes);
+        saveFolder();
+    }
+
+    private String folderHeader() {
+        int n = fDoneN + fSkipped;
+        boolean going = !fQueue.isEmpty() || folderActive();
+        String h = (going ? Tr.t("Descargando «") : Tr.t("Carpeta «")) + fName + "» · " + n + Tr.t(" de ") + fTotal;
+        if (fSkipped > 0) h += " · " + fSkipped + Tr.t(" ya estaban");
+        return h;
+    }
+
+    private java.io.File folderFile() { return new java.io.File(a.getFilesDir(), "carpeta.json"); }
+
+    /** Se guarda lo que queda por pedir, para seguir si se cierra la app. */
+    private void saveFolder() {
+        try {
+            if (fTotal == 0) { folderFile().delete(); return; }
+            JSONObject o = new JSONObject();
+            o.put("name", fName); o.put("total", fTotal); o.put("done", fDoneN); o.put("skipped", fSkipped); o.put("failed", fFailed);
+            o.put("bytesTotal", fBytesTotal); o.put("bytesDone", fBytesDone);
+            JSONArray q = new JSONArray();
+            for (Item it : fQueue) q.put(it.toJson());
+            o.put("queue", q);
+            java.io.FileOutputStream out = new java.io.FileOutputStream(folderFile());
+            out.write(o.toString().getBytes("UTF-8"));
+            out.close();
+        } catch (Exception ignored) { }
+    }
+
+    private void loadFolder() {
+        try {
+            java.io.File f = folderFile();
+            if (!f.isFile()) return;
+            byte[] b = new byte[(int) f.length()];
+            java.io.FileInputStream in = new java.io.FileInputStream(f);
+            int off = 0, r;
+            while (off < b.length && (r = in.read(b, off, b.length - off)) > 0) off += r;
+            in.close();
+            JSONObject o = new JSONObject(new String(b, "UTF-8"));
+            fName = o.optString("name"); fTotal = o.optInt("total"); fDoneN = o.optInt("done"); fSkipped = o.optInt("skipped"); fFailed = o.optInt("failed");
+            fBytesTotal = o.optLong("bytesTotal"); fBytesDone = o.optLong("bytesDone");
+            JSONArray q = o.optJSONArray("queue");
+            if (q != null) for (int i = 0; i < q.length(); i++) { Item it = Item.fromJson(q.getJSONObject(i)); it.folder = true; fQueue.add(it); }
+        } catch (Exception ignored) { }
     }
 
     // ------------------------------------------------------------------ Seguimiento
@@ -327,6 +451,8 @@ final class Descargas {
     }
 
     void stop() {
+        // con una carpeta a medias se sigue pidiendo el resto aunque la app quede en segundo plano
+        if (fTotal > 0 && !fQueue.isEmpty()) return;
         running = false;
         handler.removeCallbacks(tick);
     }
@@ -364,7 +490,10 @@ final class Descargas {
                 if (st != it.status) changed = true;
                 it.status = st;
                 if (isActive(st)) active = true;
-                if (!it.notified && st == DownloadManager.STATUS_SUCCESSFUL) {
+                if (!it.notified && st == DownloadManager.STATUS_SUCCESSFUL && it.folder) {
+                    it.notified = true;
+                    folderFileDone(it, total > 0 ? total : done);
+                } else if (!it.notified && st == DownloadManager.STATUS_SUCCESSFUL) {
                     it.notified = true;
                     Toast.makeText(a, Tr.t("Descargado: ") + it.name, Toast.LENGTH_SHORT).show();
                 } else if (!it.notified && st == DownloadManager.STATUS_FAILED) {
@@ -376,9 +505,15 @@ final class Descargas {
                 if (c != null) c.close();
             }
         }
+        // las de carpeta ya bajadas se quitan de la lista (puede haber miles)
+        for (int i = items.size() - 1; i >= 0; i--) {
+            Item it = items.get(i);
+            if (it.folder && it.status == DownloadManager.STATUS_SUCCESSFUL) { list.removeView(it.row); items.remove(i); changed = true; }
+        }
         if (changed) save();
-        updateSummary(active);
-        return active;
+        boolean feeding = feed();
+        updateSummary(active || feeding);
+        return active || feeding;
     }
 
     private void paint(final Item it, long done, long total, int reason) {
@@ -496,10 +631,19 @@ final class Descargas {
         }
         if (current == null) for (Item it : items) if (isActive(it.status)) { current = it.name; break; }
         float frac = allKnown && total > 0 ? (float) done / total : 0;
+        sumPct.setText(allKnown && total > 0 ? (int) (frac * 100) + Tr.t(" % completado") : size(done) + Tr.t(" descargados"));
+        if (fTotal > 0) {
+            // carpeta: el porcentaje y lo que queda son de toda la carpeta
+            long fDone = fBytesDone + done;
+            frac = fBytesTotal > 0 ? Math.min(1f, (float) fDone / fBytesTotal) : 0;
+            allKnown = true;
+            left = Math.max(0, fBytesTotal - fDone);
+            count = fTotal - fDoneN - fSkipped - fFailed;
+            sumPct.setText((int) (frac * 100) + Tr.t(" % completado"));
+        }
+        sumFile.setText(Tr.t("Descargando: ") + (current == null ? "…" : current));
         graphActive = true;
         graph.add(speed, frac);
-        sumPct.setText(allKnown && total > 0 ? (int) (frac * 100) + Tr.t(" % completado") : size(done) + Tr.t(" descargados"));
-        sumFile.setText(Tr.t("Descargando: ") + current);
         StringBuilder b = new StringBuilder();
         b.append(Tr.t("Velocidad: ")).append(speed > 0 ? size((long) speed) + "/s" : "—");
         if (allKnown && speed > 0 && left > 0) b.append(Tr.t("   ·   Quedan ")).append(time((long) (left / speed)));
@@ -513,8 +657,9 @@ final class Descargas {
     private void refresh() {
         int act = 0;
         for (Item it : items) if (isActive(it.status)) act++;
-        panel.setVisibility(items.isEmpty() ? View.GONE : View.VISIBLE);
-        if (act > 0) header.setText(act == 1 ? Tr.t("Descargando 1 archivo") : Tr.t("Descargando ") + act + Tr.t(" archivos"));
+        panel.setVisibility(items.isEmpty() && fTotal == 0 ? View.GONE : View.VISIBLE);
+        if (fTotal > 0) header.setText(folderHeader());
+        else if (act > 0) header.setText(act == 1 ? Tr.t("Descargando 1 archivo") : Tr.t("Descargando ") + act + Tr.t(" archivos"));
         else header.setText(items.size() == 1 ? Tr.t("Descargas · 1 terminada") : Tr.t("Descargas · ") + items.size() + Tr.t(" terminadas"));
         // Que la lista no tape mas de media pantalla
         int max = a.getResources().getDisplayMetrics().heightPixels * 45 / 100;

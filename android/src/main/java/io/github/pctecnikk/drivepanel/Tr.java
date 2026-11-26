@@ -58,6 +58,17 @@ final class Tr {
 
     static {
         e("Enlace no válido", "Invalid link");
+        e(" errores", " errors");
+        e(" ya estaban", " already there");
+        e("Carpeta «", "Folder “");
+        e("Da permiso para guardar y vuelve a tocar Descargar", "Allow saving files and tap Download again");
+        e("Descargando la carpeta «", "Downloading the folder “");
+        e("Descargando «", "Downloading “");
+        e("La carpeta está vacía", "The folder is empty");
+        e("Ya hay una carpeta descargándose; espera a que termine", "A folder is already downloading; wait for it to finish");
+        e("» descargada con ", "” downloaded with ");
+        e("» descargada en Descargas", "” downloaded to Download");
+        e("» en Descargas", "” to Download");
         e("Solo se pueden compartir fotos y archivos con DrivePanel", "Only photos and files can be shared with DrivePanel");
         e("Primero conecta con tu servidor DrivePanel; luego se suben los archivos", "First connect to your DrivePanel server; then the files will be uploaded");
         e("Del móvil", "From phone");

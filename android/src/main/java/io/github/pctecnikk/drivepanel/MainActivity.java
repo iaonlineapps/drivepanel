@@ -685,8 +685,12 @@ public class MainActivity extends Activity {
                 if (guess != null) mime = guess;
             }
             if (mime != null && !mime.isEmpty()) r.setMimeType(mime);
-            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+            // las de una carpeta no dejan un aviso por archivo (podrian ser miles)
+            r.setNotificationVisibility(d.folder ? DownloadManager.Request.VISIBILITY_VISIBLE : DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            if (d.rel != null && d.rel.contains("/")) {  // crear las subcarpetas (en Android 10+ las crea el sistema)
+                try { new java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), d.rel).getParentFile().mkdirs(); } catch (Exception ignored) { }
+            }
+            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, d.rel != null ? d.rel : name);
             DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             return dm.enqueue(r);
         } catch (Exception e) {
@@ -796,6 +800,53 @@ public class MainActivity extends Activity {
 
         @android.webkit.JavascriptInterface
         public void nextIsFolder(boolean folder) { a.nextIsFolder = folder; }
+
+        /** Descargar una carpeta tal cual (web 1.0.11+): {name, files:[{url, rel, size}]} */
+        @android.webkit.JavascriptInterface
+        public void downloadFolder(final String json) {
+            a.runOnUiThread(new Runnable() { @Override public void run() { a.startFolder(json); } });
+        }
+    }
+
+    /** Cada archivo de la carpeta va a Descargas/<carpeta>/<subcarpetas>/<archivo>. */
+    void startFolder(String json) {
+        if (Build.VERSION.SDK_INT < 29
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
+            toast(Tr.t("Da permiso para guardar y vuelve a tocar Descargar"));
+            return;
+        }
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(json);
+            org.json.JSONArray arr = o.getJSONArray("files");
+            String ua = web != null ? web.getSettings().getUserAgentString() : null;
+            java.util.List<Descargas.Item> files = new java.util.ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject f = arr.getJSONObject(i);
+                String url = f.getString("url");
+                if (!url.matches("(?i)^https?://.+")) continue;
+                StringBuilder rel = new StringBuilder();
+                for (String part : f.getString("rel").split("/")) {
+                    String clean = part.replaceAll("[\\\\:*?\"<>|\\u0000-\\u001f]", "_").trim();
+                    if (clean.isEmpty() || clean.equals(".") || clean.equals("..")) continue;
+                    if (rel.length() > 0) rel.append('/');
+                    rel.append(clean);
+                }
+                if (rel.length() == 0) continue;
+                Descargas.Item it = new Descargas.Item();
+                it.url = url;
+                it.rel = rel.toString();
+                it.name = it.rel.substring(it.rel.lastIndexOf('/') + 1);
+                it.size = f.optLong("size", -1);
+                it.userAgent = ua;
+                it.folder = true;
+                files.add(it);
+            }
+            if (files.isEmpty()) { toast(Tr.t("La carpeta está vacía")); return; }
+            descargas.addFolder(o.optString("name", "DrivePanel"), files);
+        } catch (Exception e) {
+            toast(Tr.t("No se ha podido descargar: ") + e.getMessage());
+        }
     }
 
     private void onFolderPicked(final Uri tree) {

@@ -462,6 +462,8 @@ function openItem(it) {
   openViewer(it);
 }
 function download(items) {
+  // carpetas (o varios a la vez): elegir entre bajarlas tal cual o en .zip (bajar.js)
+  if ((items.length > 1 || items.some(i => i.dir)) && typeof downloadFolders === 'function') return downloadFolders(items);
   const one = items.length === 1 && !items[0].dir;
   const url = one ? fileUrl(items[0].path, true) : '/api/zip?' + items.map(i => 'paths=' + enc(i.path)).join('&') + shareQ();
   const name = one ? items[0].name : (items.length === 1 ? items[0].name : 'DrivePanel') + '.zip';
@@ -508,7 +510,7 @@ function openCtx(anchor, it) {
   const m = $('#ctx'), trash = S.view === 'trash', own = !S.share && S.view !== 'shared' && !trash, multi = S.sel.size > 1;
   const opts = [];
   if (!trash && !multi) opts.push(['open', 'open', it.dir ? 'Abrir' : 'Ver']);
-  if (!trash) opts.push(['download', 'download', it.dir || multi ? 'Descargar (.zip)' : 'Descargar']);
+  if (!trash) opts.push(['download', 'download', 'Descargar']);
   if (own && !multi) opts.push(['share', 'share', 'Compartir'], ['rename', 'edit', 'Cambiar nombre']);
   if (own) opts.push(['move', 'move', 'Mover a…']);
   if ((S.view === 'recent' || S.view === 'photos' || S.q) && !multi) opts.push(['location', 'drive', 'Mostrar ubicación']);
