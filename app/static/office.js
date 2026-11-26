@@ -83,12 +83,20 @@ const OFFICE = (() => {
     if (e === '.docx') return 'docx';
     if (e === '.xlsx' || e === '.xlsm') return 'xlsx';
     if (e === '.csv' || e === '.tsv') return 'csv';
+    if (['.xls', '.ods', '.fods', '.xlsb'].includes(e)) return 'oldsheet';
+    if (e === '.odt') return 'odt';
+    if (e === '.doc' || e === '.rtf') return 'olddoc';
+    if (e === '.pptx' || e === '.odp') return 'slides';
+    if (e === '.mdb' || e === '.accdb') return 'access';
     if (it.kind === 'text' && it.size < 2e6) return 'text';
     return null;
   }
-  const FORMATS = {pdf: ['.pdf'], docx: ['.docx'], xlsx: ['.xlsx', '.csv'], csv: ['.csv', '.xlsx'], text: []};
-  const ICON = {pdf: 'pdf', docx: 'doc', xlsx: 'sheet', csv: 'sheet', text: 'text'};
-  const MIME = {'.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // formatos en los que se puede guardar (el primero es el del propio archivo, si se puede)
+  const FORMATS = {pdf: ['.pdf'], docx: ['.docx', '.odt'], odt: ['.odt', '.docx'], olddoc: ['.docx', '.odt'], xlsx: ['.xlsx', '.ods', '.csv'], csv: ['.csv', '.xlsx', '.ods'],
+    oldsheet: ['.xlsx', '.ods', '.xls', '.csv'], slides: [], access: ['.xlsx'], text: []};
+  const ICON = {pdf: 'pdf', docx: 'doc', odt: 'doc', olddoc: 'doc', xlsx: 'sheet', csv: 'sheet', oldsheet: 'sheet', slides: 'slides', access: 'sheet', text: 'text'};
+  const MIME = {'.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.odt': 'application/vnd.oasis.opendocument.text',
+    '.ods': 'application/vnd.oasis.opendocument.spreadsheet', '.xls': 'application/vnd.ms-excel',
     '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.csv': 'text/csv', '.pdf': 'application/pdf'};
 
   /* ---------- estado del documento abierto ---------- */
@@ -106,7 +114,8 @@ const OFFICE = (() => {
   function header() {
     el('ofName').textContent = O.name; el('ofName').title = O.path;
     el('ofIcon').innerHTML = svg(ICON[O.type]); el('ofIcon').className = 'ic-' + ICON[O.type];
-    el('ofSave').classList.toggle('hidden', O.ro || O.type === 'docx' && !O.editing);
+    el('ofSave').classList.toggle('hidden', O.ro || O.viewOnly);
+    el('ofPrint').classList.toggle('hidden', !O.print || IN_APP);
     setDirty(O.dirty);
   }
 
@@ -160,7 +169,9 @@ const OFFICE = (() => {
   }
   async function askLossy() {
     const p = dialog(`<h3>${t('¿Reemplazar el original?')}</h3>
-      <p>${O.type === 'docx' ? t('Se guardan los textos, títulos, listas, tablas, imágenes y enlaces. Si el documento tenía un diseño complicado (columnas, encabezados, cuadros de texto), puede cambiar un poco.')
+      <p>${['docx', 'odt'].includes(O.type) ? t('Se guardan los textos, títulos, listas, tablas, imágenes y enlaces. Si el documento tenía un diseño complicado (columnas, encabezados, cuadros de texto), puede cambiar un poco.')
+        : O.type === 'oldsheet' && extOf(O.name) === '.xls' ? t('En el formato antiguo de Excel (.xls) se guardan los datos y las hojas, pero las fórmulas se quedan como su resultado y se pierden los colores. Para conservar las fórmulas, guarda una copia en .xlsx.')
+        : O.type === 'oldsheet' ? t('Se guardan los datos, las fórmulas y las hojas, pero no los colores ni los bordes.')
         : t('Se guardan los datos, las fórmulas y el formato de las celdas. Si el libro tenía gráficos o tablas dinámicas, puede que se pierdan.')}</p>
       <p>${t('Si no estás seguro, guarda una copia y el original se queda como estaba.')}</p>
       <div class="actions"><button class="btn" data-close>${t('Cancelar')}</button><button class="btn" id="lzRep">${t('Reemplazar')}</button><button class="btn primary" id="lzCopy">${t('Guardar una copia')}</button></div>`);
@@ -169,7 +180,7 @@ const OFFICE = (() => {
   }
   async function copyDialog() {
     const fmts = FORMATS[O.type] || [];
-    const cur = extOf(O.name), opts = fmts.length ? fmts : [cur];
+    const cur = extOf(O.name), opts = fmts.length ? (fmts.includes(cur) && cur !== '.xls' ? [cur, ...fmts.filter(x => x !== cur)] : fmts) : [cur];
     const def = baseName(O.name) + ' ' + t('(copia)');
     const p = dialog(`<h3>${t('Guardar una copia')}</h3><form id="cpF">
       <label>${t('Nombre')}</label><input id="cpN" value="${esc(def)}">
@@ -181,7 +192,7 @@ const OFFICE = (() => {
   }
   async function save(asCopy = false) {
     if (!O || O.busy) return;
-    if (O.ro) asCopy = true;
+    if (O.ro || (O.copyOnly && !O.confirmed)) asCopy = true;
     if (!asCopy && O.lossy && !O.confirmed) {
       const c = await askLossy(); if (!c) return;
       if (c === 'copy') asCopy = true; else O.confirmed = true;
@@ -197,9 +208,9 @@ const OFFICE = (() => {
       const blob = await O.export(ext);
       const r = await upload(blob, dir, name, conflict);
       const sameFmt = ext === extOf(O.name);
-      if (asCopy && !sameFmt) { toast(t('Copia guardada: {name}', {name: r.name})); el('ofState').textContent = was; return; }
+      if (asCopy && !sameFmt && !O.copyOnly) { toast(t('Copia guardada: {name}', {name: r.name})); el('ofState').textContent = was; return; }
       if (asCopy) {  // a partir de ahora se edita la copia
-        O.name = r.name; O.dir = dir; O.path = (dir ? dir + '/' : '') + r.name; O.share = null; O.ro = false; O.confirmed = true;
+        O.name = r.name; O.dir = dir; O.path = (dir ? dir + '/' : '') + r.name; O.share = null; O.ro = false; O.confirmed = true; O.copyOnly = false;
         toast(t('Copia guardada: {name}', {name: r.name}));
       } else toast(t('Guardado'), 1500);
       O.savedOnce = true; setDirty(false); header();
@@ -213,24 +224,155 @@ const OFFICE = (() => {
     if (O.dirty) toast(t('Se descarga la última versión guardada. Guarda antes para llevarte los cambios.'), 4000);
     go();
   }
-  function printDoc() { document.body.classList.add('of-printing'); setTimeout(() => { window.print(); setTimeout(() => document.body.classList.remove('of-printing'), 500); }, 50); }
+  /* ---------- vista previa de impresión ----------
+     Se ven las páginas tal como saldrán en el papel elegido (tamaño, orientación y márgenes)
+     y «Imprimir» imprime exactamente esas páginas. Cada documento da sus páginas con O.pages(caja),
+     donde caja es el hueco útil del papel en píxeles (96 por pulgada). */
+  const PAPER = {A4: [210, 297], A5: [148, 210], A3: [297, 420], Carta: [215.9, 279.4], Oficio: [215.9, 355.6]};
+  const MARGINS = {normal: 20, estrecho: 10, ninguno: 0};
+  const MM = 96 / 25.4;
+  let pvSeq = 0;
+  async function printPreview() {
+    if (!O || !O.pages) return;
+    const st = {paper: 'A4', orient: 'portrait', margin: O.pagesMargin || 'normal'};
+    try { Object.assign(st, JSON.parse(localStorage.getItem('dp-print') || '{}'), O.pagesMargin ? {margin: O.pagesMargin} : {}); } catch (e) {}
+    if (O.pagesOrient) st.orient = O.pagesOrient;
+    if (!PAPER[st.paper]) st.paper = 'A4';
+    el('ofPv')?.remove();
+    const pv = document.createElement('div'); pv.id = 'ofPv'; pv.className = 'of-pv';
+    const opt = (o, cur) => Object.entries(o).map(([v, l]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${esc(t(l))}</option>`).join('');
+    pv.innerHTML = `<div class="of-top"><button class="icon-btn" id="pvClose" title="${esc(t('Cerrar'))}">${svg('left')}</button>
+      <div class="of-title"><b>${t('Vista previa de impresión')}</b><span id="pvInfo"></span></div><span class="grow"></span>
+      <button class="btn primary small" id="pvPrint">${ic('print')}<span>${t('Imprimir')}</span></button></div>
+      <div class="of-tools pv-tools">
+        <label>${t('Papel')} <select id="pvPaper" class="tb-sel">${opt({A4: 'A4 (folio)', A5: 'A5 (cuartilla)', A3: 'A3', Carta: 'Carta', Oficio: 'Oficio'}, st.paper)}</select></label>
+        <label>${t('Orientación')} <select id="pvOr" class="tb-sel">${opt({portrait: 'Vertical', landscape: 'Horizontal'}, st.orient)}</select></label>
+        <label>${t('Márgenes')} <select id="pvMg" class="tb-sel">${opt({normal: 'Normales (2 cm)', estrecho: 'Estrechos (1 cm)', ninguno: 'Sin márgenes'}, st.margin)}</select></label>
+      </div>
+      <div class="pv-scroll" id="pvScroll"><div class="pv-pages" id="pvPages"></div></div>`;
+    el('office').appendChild(pv); paintIcons(pv);
+    const close = () => pv.remove();
+    el('pvClose').onclick = close;
+    const dims = () => { let [w, h] = PAPER[st.paper]; if (st.orient === 'landscape') [w, h] = [h, w]; return [w, h, MARGINS[st.margin]]; };
+    const fit = () => { const [w] = dims(); const box = el('pvPages'); if (box) box.style.zoom = String(Math.min(1, (el('pvScroll').clientWidth - 24) / (w * MM))); };
+    const render = async () => {
+      const seq = ++pvSeq, [w, h, m] = dims();
+      try { localStorage.setItem('dp-print', JSON.stringify({paper: st.paper, orient: st.orient, margin: O.pagesMargin ? undefined : st.margin})); } catch (e) {}
+      const box = {w: (w - 2 * m) * MM, h: (h - 2 * m) * MM};
+      const holder = el('pvPages'); holder.innerHTML = `<div class="pv-wait">${t('Preparando las páginas…')}</div>`; holder.style.zoom = '';
+      el('pvPrint').disabled = true;
+      let pages;
+      try { pages = await O.pages(box, pv); } catch (e) { console.error(e); holder.innerHTML = `<div class="pv-wait">${esc(e.message)}</div>`; return; }
+      if (seq !== pvSeq || !pv.isConnected) return;
+      holder.innerHTML = '';
+      for (const c of pages) {
+        const pg = document.createElement('div'); pg.className = 'pv-page';
+        pg.style.cssText = `width:${w}mm;height:${h}mm;padding:${m}mm`;
+        const inner = document.createElement('div'); inner.className = 'pv-in'; inner.appendChild(c); pg.appendChild(inner); holder.appendChild(pg);
+      }
+      el('pvInfo').textContent = pages.length === 1 ? t('1 página') : t('{n} páginas', {n: pages.length});
+      el('pvPrint').disabled = false; fit();
+    };
+    el('pvPaper').onchange = e => { st.paper = e.target.value; render(); };
+    el('pvOr').onchange = e => { st.orient = e.target.value; render(); };
+    el('pvMg').onchange = e => { st.margin = e.target.value; render(); };
+    el('pvPrint').onclick = () => {
+      const [w, h] = dims();
+      let css = el('pvAtPage'); if (!css) { css = document.createElement('style'); css.id = 'pvAtPage'; document.head.appendChild(css); }
+      css.textContent = `@page{size:${w}mm ${h}mm;margin:0}`;
+      document.body.classList.add('pv-printing'); el('pvPages').style.zoom = '';
+      setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove('pv-printing'); fit(); }, 300); }, 50);
+    };
+    const ro = new ResizeObserver(fit); ro.observe(el('pvScroll'));
+    await render();
+  }
+  // reparte bloques (párrafos, títulos, tablas, listas) en páginas sin cortar líneas por la mitad;
+  // las listas y tablas largas se parten por elementos o filas
+  function flowPages(nodes, box, cls, host) {
+    const meas = document.createElement('div'); meas.className = 'pv-measure'; host.appendChild(meas);
+    const pages = [];
+    const newPage = () => { const d = document.createElement('div'); d.className = cls + ' pv-flow'; d.style.width = box.w + 'px'; meas.appendChild(d); pages.push(d); return d; };
+    let cur = newPage();
+    const fits = () => cur.scrollHeight <= box.h + 1;
+    const place = n => {
+      cur.appendChild(n);
+      if (fits()) return;
+      cur.removeChild(n);
+      const isTable = n.tagName === 'TABLE', isList = n.tagName === 'UL' || n.tagName === 'OL';
+      if (isTable || isList) {
+        const head = isTable && n.tHead && n.tBodies.length ? n.tHead : null;  // la fila de títulos se repite en cada página
+        const items = isTable ? [...n.querySelectorAll(head ? ':scope > tr, :scope > tbody > tr' : ':scope > tr, :scope > tbody > tr, :scope > thead > tr')] : [...n.children];
+        if (items.length > 1) {
+          let count = 0, shell, body;
+          const mk = () => { shell = n.cloneNode(false); if (isTable) { if (head) shell.appendChild(head.cloneNode(true)); body = document.createElement('tbody'); shell.appendChild(body); } else { body = shell; if (n.tagName === 'OL') shell.start = (n.start || 1) + count; } cur.appendChild(shell); };
+          mk();
+          for (const it of items) {
+            const c = it.cloneNode(true); body.appendChild(c);
+            if (!fits()) {
+              body.removeChild(c);
+              if (body.children.length) { cur = newPage(); mk(); body.appendChild(c); }
+              else { body.appendChild(c); }  // no cabe ni solo: se queda (se corta)
+              if (!fits() && body.children.length === 1 && cur.children.length > 1) { cur.removeChild(shell); cur = newPage(); mk(); body.appendChild(c); }
+            }
+            count++;
+          }
+          return;
+        }
+      }
+      if (cur.childNodes.length) { cur = newPage(); cur.appendChild(n); }
+      else cur.appendChild(n);
+      if (!fits()) cur = newPage();  // bloque más alto que una página: ocupa la suya entera
+    };
+    for (const n of nodes) place(n);
+    if (!cur.childNodes.length && pages.length > 1) { pages.pop(); cur.remove(); }
+    pages.forEach(p => p.remove()); meas.remove();
+    return pages;
+  }
+  // páginas de un PDF: cada una se dibuja ajustada al papel (con lo escrito o dibujado aunque no esté guardado)
+  async function pdfPages(doc, lib, box) {
+    const out = [], n = Math.min(doc.numPages, 300), q = 2;
+    for (let i = 1; i <= n; i++) {
+      const page = await doc.getPage(i), v1 = page.getViewport({scale: 1});
+      const sc = Math.min(box.w / v1.width, box.h / v1.height), vp = page.getViewport({scale: sc * q});
+      const cv = document.createElement('canvas'); cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+      const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({canvasContext: ctx, canvas: cv, viewport: vp, intent: 'print', annotationMode: lib.AnnotationMode.ENABLE_STORAGE,
+        printAnnotationStorage: doc.annotationStorage.print}).promise;
+      const img = new Image(); img.style.width = vp.width / q + 'px'; img.style.height = vp.height / q + 'px'; img.className = 'pv-img';
+      img.src = URL.createObjectURL(await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92)));
+      cv.width = cv.height = 0;
+      out.push(img);
+    }
+    return out;
+  }
+  // páginas de Word tal como las dibuja docx-preview, reducidas si no caben en el papel
+  function docxViewPages(box) {
+    return [...el('ofDocx').querySelectorAll('section.docx')].map(sec => {
+      const cs = getComputedStyle(sec), w = parseFloat(cs.width), h = Math.max(parseFloat(cs.height), parseFloat(cs.minHeight) || 0);
+      const sc = Math.min(1, box.w / w, box.h / h);
+      const wrap = document.createElement('div'); wrap.className = 'docx-wrapper pv-docx'; wrap.style.cssText = `width:${w * sc}px;height:${h * sc}px`;
+      const c = sec.cloneNode(true); c.style.transform = `scale(${sc})`; c.style.transformOrigin = '0 0'; c.style.margin = '0'; c.style.boxShadow = 'none';
+      wrap.appendChild(c); return wrap;
+    });
+  }
   function menu() {
     const m = el('ofMenu'); if (!m.classList.contains('hidden')) return m.classList.add('hidden');
     const opts = [];
     if (!O.ro && O.export) opts.push(['save', 'save', 'Guardar']);
     if (O.export) opts.push(['copy', 'copyFile', O.ro ? 'Guardar una copia en Mi unidad' : 'Guardar una copia…']);
     opts.push(['download', 'download', 'Descargar']);
-    if (O.print && !IN_APP) opts.push(['print', 'print', O.type === 'pdf' ? 'Imprimir' : 'Imprimir o guardar como PDF']);
+    if (O.print && !IN_APP) opts.push(['print', 'print', 'Imprimir o guardar como PDF']);
     m.innerHTML = opts.map(o => `<button data-of="${o[0]}">${ic(o[1])}${t(o[2])}</button>`).join('');
     m.classList.remove('hidden');
   }
   el('ofMenu').addEventListener('click', e => {
     const a = e.target.closest('[data-of]')?.dataset.of; if (!a) return; el('ofMenu').classList.add('hidden');
-    if (a === 'save') save(); if (a === 'copy') save(true); if (a === 'download') download(); if (a === 'print') (O.print || printDoc)();
+    if (a === 'save') save(); if (a === 'copy') save(true); if (a === 'download') download(); if (a === 'print') O.print?.();
   });
   document.addEventListener('click', e => { if (!e.target.closest('#ofMore') && !e.target.closest('#ofMenu')) el('ofMenu').classList.add('hidden'); });
   paintIcons(el('office')); el('ofSave').querySelector('i').dataset.i = 'save'; el('ofSave').querySelector('i').innerHTML = svg('save');
-  el('ofClose').onclick = close; el('ofSave').onclick = () => save(); el('ofMore').onclick = menu;
+  el('ofPrint').querySelector('i').innerHTML = svg('print');
+  el('ofClose').onclick = close; el('ofSave').onclick = () => save(); el('ofPrint').onclick = () => O?.print?.(); el('ofMore').onclick = menu;
   document.addEventListener('keydown', e => {
     if (!O) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (O.export) save(); }
@@ -330,27 +472,32 @@ const OFFICE = (() => {
       setMode(T.NONE); await load();
       eventBus.on('pagesinit', () => { pv.currentScaleValue = scale; pv.currentPageNumber = page; if (m !== T.NONE) setTimeout(() => setMode(m), 200); }, {once: true});
     };
-    O.print = () => {  // se imprime la versión guardada con el visor del navegador
-      const w = window.open(fUrl(O), '_blank'); if (!w) location.href = fUrl(O);
-    };
+    // imprimir: el PDF tal como se ve ahora (con lo que se haya escrito o dibujado, aunque no esté guardado)
+    O.pages = box => pdfPages(doc, lib, box); O.pagesMargin = 'ninguno'; O.print = printPreview;
     if (!O.ro) setMode(T.NONE); else bar.querySelector('[data-tb="p-none"]').classList.add('on');
   };
 
   /* ================= Word (.docx) ================= */
   const PAGE_STYLE = 'Normal';
   OPEN.docx = async (opts) => {
-    if (opts.isNew) return docxEdit(null);
+    if (opts.isNew) return docEdit('', {fmt: '.docx', note: false});
     const buf = await fetchBuf();
-    O.buf = buf;
+    O.buf = buf; O.viewOnly = true;
     const dp = await DocxPreview();
     const body = el('ofBody');
     body.innerHTML = '<div class="of-scroll of-docview"><div id="ofDocx"></div></div>';
     tools(O.ro ? ['<span class="tb-txt">' + esc(t('Vista del documento')) + '</span>'] : [['d-edit', 'Editar el documento', 'edit', 'Editar']]);
-    el('ofTools').onclick = e => { if (e.target.closest('[data-tb="d-edit"]')) docxEdit(O.buf); };
+    el('ofTools').onclick = async e => {
+      if (!e.target.closest('[data-tb="d-edit"]')) return;
+      el('ofBody').innerHTML = `<div class="of-loading">${t('Preparando el documento para editarlo…')}</div>`;
+      const m = await Mammoth();
+      const r = await m.convertToHtml({arrayBuffer: O.buf.slice(0)}, {styleMap: ['u => u', 'strike => s', "p[style-name='Title'] => h1.title:fresh", "p[style-name='Subtitle'] => h2.subtitle:fresh"], includeDefaultStyleMap: true});
+      O.lossy = !O.confirmed; docEdit(r.value, {fmt: '.docx'});
+    };
     await dp.renderAsync(buf.slice(0), el('ofDocx'), null, {className: 'docx', inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: true,
       ignoreWidth: false, experimental: true, useBase64URL: true, renderHeaders: true, renderFooters: true, renderComments: false});
     fitPages();
-    O.print = printDoc;
+    O.pages = box => docxViewPages(box); O.pagesMargin = 'ninguno'; O.print = printPreview;
     // se puede guardar una copia sin editarla (por ejemplo desde una carpeta compartida)
     O.export = async () => new Blob([O.buf], {type: MIME['.docx']});
     const ro = new ResizeObserver(fitPages); ro.observe(body); O.cleanup.push(() => ro.disconnect());
@@ -363,17 +510,12 @@ const OFFICE = (() => {
     if (pw > avail) w.style.zoom = String(Math.max(0.3, avail / pw));
   }
 
-  async function docxEdit(buf) {
+  // página editable para Word, LibreOffice Writer (.odt) y los .doc / .rtf antiguos.  o.fmt: formato al guardar
+  async function docEdit(html, o = {}) {
     const body = el('ofBody');
-    body.innerHTML = `<div class="of-loading">${t('Preparando el documento para editarlo…')}</div>`;
-    let html = '';
-    if (buf) {
-      const m = await Mammoth();
-      const r = await m.convertToHtml({arrayBuffer: buf.slice(0)}, {styleMap: ['u => u', 'strike => s', "p[style-name='Title'] => h1.title:fresh", "p[style-name='Subtitle'] => h2.subtitle:fresh"], includeDefaultStyleMap: true});
-      html = r.value; O.lossy = !O.confirmed;
-    }
-    O.editing = true;
-    body.innerHTML = `<div class="of-scroll of-docedit">${buf ? `<div class="of-note">${ic('info')}<span>${t('Estás editando. Se conservan los textos, títulos, listas, tablas, imágenes y enlaces; algunos diseños complicados pueden simplificarse al guardar.')}</span></div>` : ''}
+    O.editing = true; O.viewOnly = false;
+    const note = o.note === false ? '' : (o.noteText || t('Estás editando. Se conservan los textos, títulos, listas, tablas, imágenes y enlaces; algunos diseños complicados pueden simplificarse al guardar.'));
+    body.innerHTML = `<div class="of-scroll of-docedit">${note ? `<div class="of-note">${ic('info')}<span>${esc(note)}</span></div>` : ''}
       <div id="ofPage" class="of-page" contenteditable="${O.ro ? 'false' : 'true'}" spellcheck="true">${html || '<p><br></p>'}</div></div>`;
     paintIcons(body);
     const page = el('ofPage');
@@ -451,10 +593,11 @@ const OFFICE = (() => {
       }
     };
     document.addEventListener('selectionchange', upd); O.cleanup.push(() => document.removeEventListener('selectionchange', upd));
-    O.export = () => htmlToDocx(page);
-    O.print = printDoc;
+    O.export = ext => (ext || o.fmt) === '.odt' ? htmlToOdt(page) : htmlToDocx(page);
+    O.pages = (box, host) => flowPages([...page.childNodes].filter(n => n.nodeType === 1 || n.data.trim()).map(n => n.nodeType === 1 ? n.cloneNode(true) : Object.assign(document.createElement('p'), {textContent: n.data})), box, 'of-page', host);
+    O.pagesMargin = null; O.print = printPreview;
     header();
-    if (!buf) { page.focus(); }
+    if (!html) { page.focus(); }
   }
 
   /* HTML de la página editable → .docx (con la librería docx) */
@@ -592,6 +735,10 @@ const OFFICE = (() => {
       if (opts.isNew) wb.addWorksheet(t('Hoja1')); else await wb.xlsx.load(await fetchBuf());
       data = wb.worksheets.filter(ws => ws.state !== 'veryHidden').map(ws => wsToData(ws));
       O.lossy = !O.confirmed && !opts.isNew;
+    } else if (kind === 'sheetjs') {
+      const r = await sheetjsData(await fetchBuf());
+      data = r.data; O.sjsOrig = r.orig;
+      O.lossy = !O.confirmed;
     } else {
       const txt = opts.isNew ? '' : new TextDecoder().decode(await fetchBuf()).replace(/^﻿/, '');
       csvSep = extOf(O.name) === '.tsv' ? '\t' : detectSep(txt);
@@ -614,6 +761,7 @@ const OFFICE = (() => {
     O.export = async ext => {
       const now = xs.getData();
       if (ext === '.csv' || ext === '.tsv') return new Blob([dataToCsv(now[0], ext === '.tsv' ? '\t' : (kind === 'csv' ? csvSep : (LANG === 'es' ? ';' : ',')))], {type: 'text/csv'});
+      if (kind === 'sheetjs' || ext === '.ods' || ext === '.xls') return dataToSheetjs(now, O.sjsOrig || [], ext || extOf(O.name));
       const EJ = await ExcelJS();
       let book = O.wb;
       if (!book) { book = new EJ.Workbook(); }
@@ -621,7 +769,7 @@ const OFFICE = (() => {
       return new Blob([await book.xlsx.writeBuffer()], {type: MIME['.xlsx']});
     };
     O.afterSave = async () => { O.snap = JSON.stringify(xs.getData()); };
-    O.print = null;  // la hoja tiene su propio botón de imprimir en la barra
+    O.print = () => xs.sheet.print.preview();  // vista previa de la hoja con su botón de imprimir
   }
   const colName = n => { let s = ''; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
   const argbHex = c => c && typeof c.argb === 'string' && c.argb.length >= 6 ? '#' + c.argb.slice(-6).toLowerCase() : null;
@@ -807,8 +955,568 @@ const OFFICE = (() => {
     ta.addEventListener('input', () => setDirty(true));
     ta.addEventListener('keydown', e => { if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '\t'); } });
     O.export = async () => new Blob([ta.value], {type: 'text/plain'});
-    O.print = printDoc;
+    O.pages = (box, host) => flowPages(ta.value.split('\n').map(l => Object.assign(document.createElement('div'), {textContent: l || '\u200b'})), box, 'pv-textpage', host);
+    O.pagesMargin = null; O.print = printPreview;
     if (opts.isNew) ta.focus();
+  };
+
+  /* ================= LibreOffice Writer (.odt) ================= */
+  const Zip = () => lib('jszip.min.js', 'JSZip');
+  const xmlDoc = s => new DOMParser().parseFromString(s, 'application/xml');
+  const lenPx = v => { const m = /^([\d.]+)(cm|mm|in|pt|px)?$/.exec(v || ''); if (!m) return null; return +m[1] * ({cm: 37.795, mm: 3.7795, in: 96, pt: 4 / 3, px: 1}[m[2] || 'px']); };
+  function odfStyles(...docs) {
+    const S2 = {}, L = {};
+    for (const d of docs) {
+      if (!d) continue;
+      for (const st of d.getElementsByTagName('style:style')) {
+        const tp = st.getElementsByTagName('style:text-properties')[0], pp = st.getElementsByTagName('style:paragraph-properties')[0], o = {parent: st.getAttribute('style:parent-style-name')};
+        if (tp) {
+          if (tp.getAttribute('fo:font-weight') === 'bold') o.bold = true;
+          if (tp.getAttribute('fo:font-style') === 'italic') o.italic = true;
+          const u = tp.getAttribute('style:text-underline-style'); if (u && u !== 'none') o.underline = true;
+          const l = tp.getAttribute('style:text-line-through-style'); if (l && l !== 'none') o.strike = true;
+          const c = tp.getAttribute('fo:color'); if (c && c !== '#000000') o.color = c;
+          const bg = tp.getAttribute('fo:background-color'); if (bg && bg !== 'transparent') o.bg = bg;
+          const fs = tp.getAttribute('fo:font-size'); if (fs && /pt$/.test(fs)) o.size = parseFloat(fs);
+        }
+        if (pp) { const a = pp.getAttribute('fo:text-align'); if (a) o.align = {end: 'right', right: 'right', center: 'center', justify: 'justify'}[a]; }
+        S2[st.getAttribute('style:name')] = o;
+      }
+      for (const ls of d.getElementsByTagName('text:list-style')) {
+        const first = [...ls.children].find(x => x.getAttribute('text:level') === '1');
+        L[ls.getAttribute('style:name')] = first && first.localName === 'list-level-style-number' && first.getAttribute('style:num-format') ? 'ol' : 'ul';
+      }
+    }
+    const get = (n, seen = 0) => { const o = S2[n]; if (!o || seen > 8) return {}; return {...(o.parent ? get(o.parent, seen + 1) : {}), ...o}; };
+    return {get, list: n => L[n]};
+  }
+  async function odtToHtml(buf) {
+    const Z = await Zip(), zip = await Z.loadAsync(buf);
+    const content = xmlDoc(await zip.file('content.xml').async('string'));
+    const styles = zip.file('styles.xml') ? xmlDoc(await zip.file('styles.xml').async('string')) : null;
+    const st = odfStyles(styles, content);
+    const imgs = {};
+    for (const f of Object.keys(zip.files)) if (/\.(png|jpe?g|gif|bmp)$/i.test(f)) imgs[f] = f;
+    const css = o => [o.bold && 'font-weight:bold', o.italic && 'font-style:italic', (o.underline || o.strike) && `text-decoration:${[o.underline && 'underline', o.strike && 'line-through'].filter(Boolean).join(' ')}`,
+      o.color && `color:${o.color}`, o.bg && `background-color:${o.bg}`, o.size && `font-size:${o.size}pt`].filter(Boolean).join(';');
+    async function inline(node) {
+      let h = '';
+      for (const n of node.childNodes) {
+        if (n.nodeType === 3) { h += esc(n.data); continue; }
+        if (n.nodeType !== 1) continue;
+        const ln = n.localName;
+        if (ln === 's') h += '&nbsp;'.repeat(+(n.getAttribute('text:c') || 1));
+        else if (ln === 'tab') h += '&emsp;';
+        else if (ln === 'line-break') h += '<br>';
+        else if (ln === 'span') { const c = css(st.get(n.getAttribute('text:style-name'))); const inner = await inline(n); h += c ? `<span style="${c}">${inner}</span>` : inner; }
+        else if (ln === 'a') { const href = n.getAttribute('xlink:href') || ''; const inner = await inline(n); h += /^(https?:|mailto:)/i.test(href) ? `<a href="${esc(href)}">${inner}</a>` : inner; }
+        else if (ln === 'frame') {
+          const im = n.getElementsByTagName('draw:image')[0], href = im?.getAttribute('xlink:href');
+          if (href && zip.file(href)) {
+            const ext = href.split('.').pop().toLowerCase().replace('jpg', 'jpeg');
+            const b64 = await zip.file(href).async('base64'), w = lenPx(n.getAttribute('svg:width'));
+            h += `<img src="data:image/${ext};base64,${b64}" alt=""${w ? ` width="${Math.round(Math.min(w, 640))}"` : ''}>`;
+          } else { const tb = n.getElementsByTagName('draw:text-box')[0]; if (tb) h += await blocks(tb); }
+        }
+        else if (['note', 'annotation', 'bookmark', 'bookmark-start', 'bookmark-end', 'soft-page-break', 'sequence-decls', 'tracked-changes'].includes(ln)) continue;
+        else h += await inline(n);
+      }
+      return h;
+    }
+    async function blocks(node, listType) {
+      let h = '';
+      for (const n of node.children) {
+        const ln = n.localName, o = st.get(n.getAttribute('text:style-name'));
+        const al = o.align ? ` style="text-align:${o.align}"` : '';
+        if (ln === 'h') { const lv = Math.min(3, +(n.getAttribute('text:outline-level') || 1)); h += `<h${lv}${al}>${await inline(n) || '<br>'}</h${lv}>`; }
+        else if (ln === 'p') {
+          const sn = (n.getAttribute('text:style-name') || '') + ' ' + (st.get(n.getAttribute('text:style-name')).parent || '');
+          const inner = await inline(n), c = css(o);
+          if (/\bTitle\b/.test(sn)) h += `<h1 class="title"${al}>${inner || '<br>'}</h1>`;
+          else if (/Quotations/.test(sn)) h += `<blockquote>${inner}</blockquote>`;
+          else h += `<p${al}>${c && inner ? `<span style="${c}">${inner}</span>` : inner || '<br>'}</p>`;
+        }
+        else if (ln === 'list') {
+          const tag = st.list(n.getAttribute('text:style-name')) || listType || 'ul';
+          let items = '';
+          for (const li of n.children) if (li.localName === 'list-item' || li.localName === 'list-header') {
+            let inner = '';
+            for (const c of li.children) inner += c.localName === 'p' || c.localName === 'h' ? (inner && !/<\/(ul|ol)>$/.test(inner) ? '<br>' : '') + await inline(c) : await blocks({children: [c]}, tag);
+            items += `<li>${inner || '<br>'}</li>`;
+          }
+          h += `<${tag}>${items}</${tag}>`;
+        }
+        else if (ln === 'table') {
+          let rows = '';
+          const trs = [...n.getElementsByTagName('table:table-row')].filter(r => r.closest ? true : true);
+          for (const tr of trs) {
+            if (tr.parentElement.closest?.('table\\:table') && false) continue;
+            let tds = '';
+            for (const td of tr.children) {
+              if (td.localName !== 'table-cell') continue;
+              const cs = +(td.getAttribute('table:number-columns-spanned') || 1), rs = +(td.getAttribute('table:number-rows-spanned') || 1);
+              tds += `<td${cs > 1 ? ` colspan="${cs}"` : ''}${rs > 1 ? ` rowspan="${rs}"` : ''}>${await blocks(td) || '<br>'}</td>`;
+            }
+            rows += `<tr>${tds}</tr>`;
+          }
+          h += `<table class="of-table"><tbody>${rows}</tbody></table>`;
+        }
+        else if (['section', 'index-body', 'table-of-content', 'alphabetical-index', 'illustration-index', 'table-index', 'object-index', 'user-index', 'bibliography'].includes(ln)) h += await blocks(n.localName === 'section' ? n : (n.getElementsByTagName('text:index-body')[0] || n), listType);
+        else if (ln === 'frame' || ln === 'custom-shape') h += `<p>${await inline({childNodes: [n]})}</p>`;
+      }
+      return h;
+    }
+    const body = content.getElementsByTagName('office:text')[0];
+    return body ? blocks(body) : '';
+  }
+
+  /* HTML de la página editable → .odt (LibreOffice Writer), escrito a mano con JSZip */
+  async function htmlToOdt(page) {
+    const Z = await Zip(), zip = new Z();
+    const X = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+    const pageColor = rgbHex(getComputedStyle(page).color), basePx = parseFloat(getComputedStyle(page).fontSize);
+    const BLOCK = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'TABLE', 'BLOCKQUOTE', 'PRE', 'HR', 'SECTION', 'ARTICLE']);
+    const isBlock = n => n.nodeType === 1 && BLOCK.has(n.tagName);
+    const tStyles = {}, pStyles = {}; let tN = 0, pN = 0, imgN = 0, tblN = 0;
+    const pics = [];
+    const tStyle = o => { const k = JSON.stringify(o); if (k === '{}') return null; return tStyles[k] ||= {name: 'T' + (++tN), o}; };
+    const pStyle = (parent, align) => { if (!align) return parent; const k = parent + '|' + align; return (pStyles[k] ||= {name: 'P' + (++pN), parent, align}).name; };
+    function fmt(textNode) {
+      const e = textNode.parentElement, cs = getComputedStyle(e), o = {};
+      if (+cs.fontWeight >= 600 || cs.fontWeight === 'bold') o.b = 1;
+      if (cs.fontStyle === 'italic') o.i = 1;
+      for (let x = e; x && x !== page && !isBlock(x); x = x.parentElement) {
+        const xs = getComputedStyle(x), d = xs.textDecorationLine || '';
+        if (x.tagName === 'U' || d.includes('underline')) o.u = 1;
+        if (['S', 'STRIKE', 'DEL'].includes(x.tagName) || d.includes('line-through')) o.s = 1;
+        if (!o.bg && xs.backgroundColor && !/rgba\(0, 0, 0, 0\)|transparent/.test(xs.backgroundColor)) o.bg = '#' + rgbHex(xs.backgroundColor);
+      }
+      const c = rgbHex(cs.color); if (c && c !== pageColor && !e.closest('a')) o.c = '#' + c;
+      const px = parseFloat(cs.fontSize); if (px && Math.abs(px - basePx) > 0.5 && !e.closest('h1,h2,h3,h4,h5,h6')) o.sz = Math.round(px * 0.75 * 2) / 2;
+      return o;
+    }
+    const spaces = txt => X(txt).replace(/ {2,}/g, m => ' ' + `<text:s text:c="${m.length - 1}"/>`).replace(/\t/g, '<text:tab/>');
+    function runs(nodes) {
+      let h = '';
+      for (const n of nodes) {
+        if (n.nodeType === 3) { const txt = n.data.replace(/[\r\n]+/g, ' ').replace(/ /g, ' '); if (!txt) continue; const st = tStyle(fmt(n)); h += st ? `<text:span text:style-name="${st.name}">${spaces(txt)}</text:span>` : spaces(txt); }
+        else if (n.nodeType !== 1) continue;
+        else if (n.tagName === 'BR') h += '<text:line-break/>';
+        else if (n.tagName === 'IMG') {
+          const m = /^data:image\/(png|jpe?g|gif|bmp);base64,(.*)$/i.exec(n.getAttribute('src') || ''); if (!m) continue;
+          const ext = m[1].toLowerCase().replace('jpeg', 'jpg'), file = `Pictures/img${++imgN}.${ext}`;
+          zip.file(file, m[2], {base64: true}); pics.push([file, 'image/' + m[1].toLowerCase().replace('jpg', 'jpeg')]);
+          let w = n.width || n.naturalWidth || 300, hh = n.height || n.naturalHeight || 200; if (w > 600) { hh = Math.round(hh * 600 / w); w = 600; }
+          h += `<draw:frame draw:name="Imagen${imgN}" text:anchor-type="as-char" svg:width="${(w / 37.795).toFixed(3)}cm" svg:height="${(hh / 37.795).toFixed(3)}cm" draw:z-index="${imgN}"><draw:image xlink:href="${file}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
+        }
+        else if (n.tagName === 'A' && /^(https?:|mailto:)/i.test(n.getAttribute('href') || '')) h += `<text:a xlink:type="simple" xlink:href="${X(n.getAttribute('href'))}">${runs(n.childNodes)}</text:a>`;
+        else if (!['SCRIPT', 'STYLE'].includes(n.tagName)) h += runs(n.childNodes);
+      }
+      return h;
+    }
+    const ALIGN = {center: 'center', right: 'end', end: 'end', justify: 'justify'};
+    function para(nodes, blk) {
+      const tag = blk?.tagName, al = blk ? ALIGN[getComputedStyle(blk).textAlign] : null, inner = runs(nodes);
+      if (/^H[1-6]$/.test(tag)) {
+        if (blk.classList.contains('title')) return `<text:p text:style-name="${pStyle('Title', al)}">${inner}</text:p>`;
+        const lv = Math.min(+tag[1], 3);
+        return `<text:h text:style-name="${pStyle('Heading_20_' + lv, al)}" text:outline-level="${lv}">${inner}</text:h>`;
+      }
+      return `<text:p text:style-name="${pStyle(tag === 'BLOCKQUOTE' || blk?.closest?.('blockquote') ? 'Quotations' : 'Standard', al)}">${inner}</text:p>`;
+    }
+    function container(elm, blk) {
+      let out = '', inl = [];
+      const flush = () => { if (inl.length) { if (inl.some(n => n.nodeType === 1 || n.data.trim())) out += para(inl, blk); inl = []; } };
+      for (const n of elm.childNodes) {
+        if (n.nodeType === 3 || (n.nodeType === 1 && !isBlock(n))) inl.push(n);
+        else if (n.nodeType === 1) { flush(); out += block(n); }
+      }
+      flush();
+      if (blk && blk !== page && !out) out = para([], blk);
+      return out;
+    }
+    function block(n) {
+      const tag = n.tagName;
+      if (tag === 'UL' || tag === 'OL') {
+        let items = '';
+        for (const li of n.children) items += li.tagName === 'LI' ? `<text:list-item>${container(li, li)}</text:list-item>` : `<text:list-item>${block(li)}</text:list-item>`;
+        return `<text:list text:style-name="${tag === 'OL' ? 'LNum' : 'LBul'}">${items}</text:list>`;
+      }
+      if (tag === 'TABLE') {
+        const trs = [...n.querySelectorAll(':scope > tr, :scope > tbody > tr, :scope > thead > tr, :scope > tfoot > tr')];
+        const cols = Math.max(1, ...trs.map(tr => [...tr.children].reduce((a, td) => a + (td.colSpan || 1), 0)));
+        let rows = '';
+        for (const tr of trs) {
+          let cells = '';
+          for (const td of tr.children) {
+            if (!['TD', 'TH'].includes(td.tagName)) continue;
+            const span = td.colSpan > 1 ? ` table:number-columns-spanned="${td.colSpan}"` : '', rs = td.rowSpan > 1 ? ` table:number-rows-spanned="${td.rowSpan}"` : '';
+            cells += `<table:table-cell table:style-name="TCell" office:value-type="string"${span}${rs}>${container(td, td) || '<text:p/>'}</table:table-cell>` + '<table:covered-table-cell/>'.repeat(Math.max(0, (td.colSpan || 1) - 1));
+          }
+          rows += `<table:table-row>${cells}</table:table-row>`;
+        }
+        return `<table:table table:name="Tabla${++tblN}" table:style-name="TTable"><table:table-column table:number-columns-repeated="${cols}"/>${rows}</table:table>`;
+      }
+      if (tag === 'HR') return '<text:p text:style-name="Horizontal_20_Line"/>';
+      return container(n, n);
+    }
+    const bodyXml = container(page, null) || '<text:p text:style-name="Standard"/>';
+    const tProps = o => [o.b && 'fo:font-weight="bold" style:font-weight-asian="bold" style:font-weight-complex="bold"', o.i && 'fo:font-style="italic" style:font-style-asian="italic"',
+      o.u && 'style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"', o.s && 'style:text-line-through-style="solid"',
+      o.c && `fo:color="${o.c}"`, o.bg && `fo:background-color="${o.bg}"`, o.sz && `fo:font-size="${o.sz}pt"`].filter(Boolean).join(' ');
+    const auto = Object.values(tStyles).map(s2 => `<style:style style:name="${s2.name}" style:family="text"><style:text-properties ${tProps(s2.o)}/></style:style>`).join('') +
+      Object.values(pStyles).map(s2 => `<style:style style:name="${s2.name}" style:family="paragraph" style:parent-style-name="${s2.parent}"><style:paragraph-properties fo:text-align="${s2.align}"/></style:style>`).join('') +
+      `<style:style style:name="TTable" style:family="table"><style:table-properties style:width="17cm" table:align="margins"/></style:style>
+       <style:style style:name="TCell" style:family="table-cell"><style:table-cell-properties fo:padding="0.1cm" fo:border="0.5pt solid #9e9e9e"/></style:style>
+       <text:list-style style:name="LBul">${[1, 2, 3, 4, 5].map(l => `<text:list-level-style-bullet text:level="${l}" text:bullet-char="${'•◦▪•◦'[l - 1]}"><style:list-level-properties text:list-level-position-and-space-mode="label-alignment"><style:list-level-label-alignment text:label-followed-by="listtab" fo:text-indent="-0.635cm" fo:margin-left="${(0.635 * l + 0.635).toFixed(3)}cm"/></style:list-level-properties></text:list-level-style-bullet>`).join('')}</text:list-style>
+       <text:list-style style:name="LNum">${[1, 2, 3, 4, 5].map(l => `<text:list-level-style-number text:level="${l}" style:num-suffix="." style:num-format="${['1', 'a', 'i', '1', 'a'][l - 1]}"><style:list-level-properties text:list-level-position-and-space-mode="label-alignment"><style:list-level-label-alignment text:label-followed-by="listtab" fo:text-indent="-0.635cm" fo:margin-left="${(0.635 * l + 0.635).toFixed(3)}cm"/></style:list-level-properties></text:list-level-style-number>`).join('')}</text:list-style>`;
+    const NSs = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"';
+    const FONTS = '<office:font-face-decls><style:font-face style:name="Carlito" svg:font-family="Carlito, Calibri" style:font-family-generic="swiss"/></office:font-face-decls>';
+    zip.file('mimetype', 'application/vnd.oasis.opendocument.text', {compression: 'STORE'});
+    zip.file('content.xml', `<?xml version="1.0" encoding="UTF-8"?><office:document-content ${NSs} office:version="1.3">${FONTS}<office:automatic-styles>${auto}</office:automatic-styles><office:body><office:text>${bodyXml}</office:text></office:body></office:document-content>`);
+    const head = (name, disp, size, color, lv) => `<style:style style:name="${name}" style:display-name="${disp}" style:family="paragraph" style:parent-style-name="Standard" style:next-style-name="Standard"${lv ? ` style:default-outline-level="${lv}"` : ''} style:class="text"><style:paragraph-properties fo:margin-top="0.35cm" fo:margin-bottom="0.15cm" fo:keep-with-next="always"/><style:text-properties fo:font-size="${size}pt" fo:font-weight="${name === 'Title' ? 'normal' : 'bold'}" fo:color="${color}"/></style:style>`;
+    zip.file('styles.xml', `<?xml version="1.0" encoding="UTF-8"?><office:document-styles ${NSs} office:version="1.3">${FONTS}<office:styles>
+      <style:default-style style:family="paragraph"><style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.21cm" fo:line-height="115%"/><style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:language="${LANG}" fo:country="${LANG === 'es' ? 'ES' : 'GB'}"/></style:default-style>
+      <style:style style:name="Standard" style:family="paragraph" style:class="text"/>
+      ${head('Title', 'Title', 26, '#111111', 0)}${head('Heading_20_1', 'Heading 1', 20, '#1f3864', 1)}${head('Heading_20_2', 'Heading 2', 15, '#2f5496', 2)}${head('Heading_20_3', 'Heading 3', 12.5, '#1f3864', 3)}
+      <style:style style:name="Quotations" style:display-name="Quotations" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:margin-left="1cm" fo:margin-right="1cm"/><style:text-properties fo:font-style="italic" fo:color="#404040"/></style:style>
+      <style:style style:name="Horizontal_20_Line" style:display-name="Horizontal Line" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:border-bottom="0.5pt solid #808080"/></style:style>
+      </office:styles><office:automatic-styles><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="21cm" fo:page-height="29.7cm" fo:margin-top="2cm" fo:margin-bottom="2cm" fo:margin-left="2cm" fo:margin-right="2cm"/></style:page-layout></office:automatic-styles>
+      <office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1"/></office:master-styles></office:document-styles>`);
+    zip.file('meta.xml', `<?xml version="1.0" encoding="UTF-8"?><office:document-meta ${NSs} office:version="1.3"><office:meta><meta:generator>DrivePanel</meta:generator></office:meta></office:document-meta>`);
+    zip.file('META-INF/manifest.xml', `<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+      <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+      <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+      ${pics.map(([f, m]) => `<manifest:file-entry manifest:full-path="${f}" manifest:media-type="${m}"/>`).join('')}</manifest:manifest>`);
+    return zip.generateAsync({type: 'blob', mimeType: MIME['.odt'], compression: 'DEFLATE'});
+  }
+  OPEN.odt = async () => {
+    const html = await odtToHtml(await fetchBuf());
+    O.lossy = !O.confirmed;
+    docEdit(html, {fmt: '.odt'});
+  };
+
+  /* ================= Word antiguo (.doc) y .rtf: se saca el texto ================= */
+  // .doc (Word 97-2003): se lee la "tabla de piezas" del archivo para sacar el texto, sin formato
+  async function docText(buf) {
+    const XL = await lib('xlsx.full.min.js', 'XLSX');
+    const cfb = XL.CFB.read(new Uint8Array(buf), {type: 'array'});
+    const wd = XL.CFB.find(cfb, 'WordDocument'); if (!wd) throw new Error(t('No es un documento de Word válido'));
+    const bytes = c => c instanceof Uint8Array ? c : Uint8Array.from(c || []);
+    const W = bytes(wd.content), u16 = (b, o) => b[o] | (b[o + 1] << 8), u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+    const flags = u16(W, 0x0A);
+    if (flags & 0x0100) throw new Error(t('Este documento tiene contraseña'));
+    const tbl = XL.CFB.find(cfb, flags & 0x0200 ? '1Table' : '0Table'); if (!tbl) throw new Error(t('No es un documento de Word válido'));
+    const T = bytes(tbl.content), fcClx = u32(W, 0x01A2), lcbClx = u32(W, 0x01A6);
+    let i = fcClx, end = fcClx + lcbClx, txt = '';
+    while (i < end && T[i] === 0x01) i += 3 + u16(T, i + 1);
+    if (T[i] !== 0x02) throw new Error(t('No es un documento de Word válido'));
+    const lcb = u32(T, i + 1), base = i + 5, n = (lcb - 4) / 12;
+    const cp1252 = new TextDecoder('windows-1252'), u16le = new TextDecoder('utf-16le');
+    for (let k = 0; k < n; k++) {
+      const cpA = u32(T, base + k * 4), cpB = u32(T, base + (k + 1) * 4), pcd = base + (n + 1) * 4 + k * 8;
+      let fc = u32(T, pcd + 2); const comp = (fc & 0x40000000) !== 0; fc &= 0x3FFFFFFF;
+      const len = cpB - cpA;
+      txt += comp ? cp1252.decode(W.subarray(fc / 2, fc / 2 + len)) : u16le.decode(W.subarray(fc, fc + len * 2));
+    }
+    // códigos de campo: \x13 instrucciones \x14 resultado \x15 → solo el resultado
+    txt = txt.replace(/\x13[^\x13\x14\x15]*\x14([^\x15]*)\x15/g, '$1').replace(/\x13[^\x15]*\x15/g, '');
+    const ccp = u32(W, 0x004C); if (ccp && ccp < txt.length) txt = txt.slice(0, ccp);  // solo el texto principal (sin notas ni encabezados)
+    return txt.replace(/\x07\x07\r?/g, '\x01\r').replace(/\x07\r?/g, '\x01').replace(/[\x02-\x08\x0b\x0e-\x1f]/g, '').replace(/\x0c/g, '\r');
+  }
+  // .rtf: texto con negrita, cursiva y subrayado
+  function rtfToHtml(src) {
+    let i = 0, para = '';
+    const stack = [], cur = {b: 0, i: 0, u: 0, skip: 0, uc: 1};
+    const SKIP = new Set(['fonttbl', 'colortbl', 'stylesheet', 'info', 'pict', 'header', 'footer', 'headerl', 'headerr', 'footerl', 'footerr', 'footnote', 'listtable', 'listoverridetable', 'rsidtbl', 'generator', 'xmlnstbl', 'themedata', 'colorschememapping', 'latentstyles', 'datastore', 'object', 'filetbl', 'revtbl', 'pgdsctbl', 'mmathPr', 'fldinst']);
+    const cp = new TextDecoder('windows-1252');
+    const put = s => { if (cur.skip) return; let x = esc(s); if (cur.b) x = `<b>${x}</b>`; if (cur.i) x = `<i>${x}</i>`; if (cur.u) x = `<u>${x}</u>`; para += x; };
+    const paras = [], endPara = () => { paras.push(para); para = ''; };
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === '{') { stack.push({...cur}); i++; if (src.startsWith('\\*', i)) { cur.skip = 1; } continue; }
+      if (ch === '}') { Object.assign(cur, stack.pop() || {}); i++; continue; }
+      if (ch === '\\') {
+        const m = /^\\([a-zA-Z]+)(-?\d+)? ?/.exec(src.slice(i, i + 40));
+        if (m) {
+          i += m[0].length; const w = m[1], arg = m[2] !== undefined ? +m[2] : null;
+          if (SKIP.has(w)) cur.skip = 1;
+          else if (w === 'par' || w === 'sect') endPara();
+          else if (w === 'line') put('\n'), para = para.replace(/\n(<\/[biu]>)*$/, '<br>$1');
+          else if (w === 'tab') put('\t');
+          else if (w === 'cell') { if (!cur.skip) para += '\x01'; }
+          else if (w === 'row') endPara();
+          else if (w === 'b') cur.b = arg === 0 ? 0 : 1;
+          else if (w === 'i') cur.i = arg === 0 ? 0 : 1;
+          else if (w === 'ul') cur.u = 1; else if (w === 'ulnone') cur.u = 0;
+          else if (w === 'plain') cur.b = cur.i = cur.u = 0;
+          else if (w === 'uc') cur.uc = arg ?? 1;
+          else if (w === 'u') { put(String.fromCharCode(arg < 0 ? arg + 65536 : arg)); for (let k = 0; k < cur.uc && i < src.length; k++) i += src[i] === '\\' && src[i + 1] === "'" ? 4 : 1; }
+          else if (w === 'emdash') put('—'); else if (w === 'endash') put('–'); else if (w === 'bullet') put('•');
+          else if (w === 'lquote') put('‘'); else if (w === 'rquote') put('’'); else if (w === 'ldblquote') put('“'); else if (w === 'rdblquote') put('”');
+          continue;
+        }
+        const nx = src[i + 1];
+        if (nx === "'") { put(cp.decode(new Uint8Array([parseInt(src.substr(i + 2, 2), 16)]))); i += 4; continue; }
+        if (nx === '\n' || nx === '\r') { endPara(); i += 2; continue; }
+        if (nx === '~') { put(' '); i += 2; continue; }
+        put(nx || ''); i += 2; continue;
+      }
+      if (ch === '\r' || ch === '\n') { i++; continue; }
+      put(ch); i++;
+    }
+    if (para) endPara();
+    return withTables(paras);
+  }
+  // párrafos con separadores de celda (\x01) seguidos → una tabla
+  function withTables(paras) {
+    let h = '', rows = [];
+    const flush = () => { if (rows.length) h += `<table>${rows.map(r => `<tr>${r.map(c => `<td>${c || '<br>'}</td>`).join('')}</tr>`).join('')}</table>`; rows = []; };
+    for (const p2 of paras) {
+      if (p2.includes('\x01')) { const cells = p2.split('\x01'); if (cells.length > 1 && !cells[cells.length - 1].replace(/<[^>]+>/g, '').trim()) cells.pop(); rows.push(cells); continue; }
+      flush(); h += `<p>${p2 || '<br>'}</p>`;
+    }
+    flush();
+    return h;
+  }
+  OPEN.olddoc = async () => {
+    const buf = await fetchBuf(), e = extOf(O.name);
+    let html;
+    if (e === '.rtf') html = rtfToHtml(new TextDecoder('windows-1252').decode(buf));
+    else {
+      const head = new Uint8Array(buf.slice(0, 8));
+      if (head[0] === 0x50 && head[1] === 0x4B) { O.type = 'docx'; return OPEN.docx({}); }  // en realidad es un .docx con otro nombre
+      if (head[0] === 0x7B && head[1] === 0x5C) html = rtfToHtml(new TextDecoder('windows-1252').decode(buf));
+      else html = withTables((await docText(buf)).split('\r').map(l => esc(l)));
+    }
+    O.copyOnly = true; O.confirmed = false;
+    docEdit(html, {fmt: '.docx', noteText: e === '.rtf' ? t('Este formato antiguo se abre con el texto y la negrita, cursiva y subrayado. Al guardar se crea una copia en Word (.docx) o LibreOffice (.odt); el original no se toca.')
+      : t('Los Word antiguos (.doc) se abren solo con el texto, sin el formato. Al guardar se crea una copia en Word (.docx) o LibreOffice (.odt); el original no se toca.')});
+  };
+
+  /* ================= Excel antiguo (.xls), LibreOffice Calc (.ods) ================= */
+  // con SheetJS: se leen datos, fórmulas, hojas, celdas combinadas y anchos; los colores no
+  async function sheetjsData(buf) {
+    const XL = await lib('xlsx.full.min.js', 'XLSX');
+    const wb = XL.read(new Uint8Array(buf), {type: 'array', cellFormula: true, cellDates: true, cellNF: true, cellStyles: false});
+    const orig = [];
+    const data = wb.SheetNames.map((name, si) => {
+      const ws = wb.Sheets[name], rows = {}, map = {}; orig[si] = {name, map};
+      if (!ws || !ws['!ref']) return {name, rows: {len: 100}, cols: {len: 26}, styles: [], merges: []};
+      const rg = XL.utils.decode_range(ws['!ref']);
+      for (let r = rg.s.r; r <= Math.min(rg.e.r, 20000); r++) for (let c = rg.s.c; c <= Math.min(rg.e.c, 500); c++) {
+        const cell = ws[XL.utils.encode_cell({r, c})]; if (!cell) continue;
+        let text;
+        if (cell.f) { const fns = cell.f.toUpperCase().match(/[A-Z][A-Z0-9.]*(?=\()/g) || []; text = fns.every(x => XS_FN.has(x)) && !/[!\[]/.test(cell.f) ? '=' + cell.f : (cell.w ?? String(cell.v ?? '')); }
+        else text = cell.t === 'd' ? fmtCellDate(cell.v, {numFmt: cell.z || ''}) : (cell.w ?? String(cell.v ?? ''));
+        (rows[r] ||= {cells: {}}).cells[c] = {text}; map[r + ':' + c] = {cell, text};
+      }
+      const merges = (ws['!merges'] || []).map(m => { (rows[m.s.r] ||= {cells: {}}).cells[m.s.c] ||= {text: ''}; rows[m.s.r].cells[m.s.c].merge = [m.e.r - m.s.r, m.e.c - m.s.c]; return XL.utils.encode_range(m); });
+      const cols = {len: Math.max(26, rg.e.c + 5)}; (ws['!cols'] || []).forEach((c2, i) => { if (c2 && (c2.wpx || c2.wch)) cols[i] = {width: Math.round(c2.wpx || c2.wch * 7 + 5)}; });
+      rows.len = Math.max(100, rg.e.r + 30);
+      return {name, rows, cols, styles: [], merges};
+    });
+    return {data, orig};
+  }
+  async function dataToSheetjs(sheets, orig, ext) {
+    const XL = await lib('xlsx.full.min.js', 'XLSX');
+    const wb = XL.utils.book_new();
+    sheets.forEach((d, si) => {
+      const o = orig.find(x => x.name === d.name) || orig[si] || {map: {}};
+      const ws = {}; let maxR = 0, maxC = 0;
+      for (const r in d.rows || {}) {
+        if (r === 'len') continue;
+        for (const c in d.rows[r].cells || {}) {
+          const txt = d.rows[r].cells[c].text ?? ''; const was = o.map[r + ':' + c];
+          let cell;
+          if (was && was.text === txt) cell = {...was.cell};
+          else { const v = parseVal(txt); if (!v) continue; cell = 'formula' in v ? {t: 'n', f: v.formula} : 'num' in v ? {t: 'n', v: v.num, ...(v.fmt ? {z: v.fmt} : {})} : 'bool' in v ? {t: 'b', v: v.bool} : {t: 's', v: v.str}; }
+          if (cell.t === 'd' && ext === '.xls') { cell.t = 'n'; cell.v = (cell.v - new Date(Date.UTC(1899, 11, 30))) / 864e5; cell.z ||= 'dd/mm/yyyy'; }
+          ws[XL.utils.encode_cell({r: +r, c: +c})] = cell; maxR = Math.max(maxR, +r); maxC = Math.max(maxC, +c);
+        }
+      }
+      ws['!ref'] = XL.utils.encode_range({s: {r: 0, c: 0}, e: {r: maxR, c: maxC}});
+      if (d.merges?.length) ws['!merges'] = d.merges.map(m => XL.utils.decode_range(m));
+      const cols = []; for (const c in d.cols || {}) if (c !== 'len' && d.cols[c]?.width) cols[+c] = {wpx: d.cols[c].width}; if (cols.length) ws['!cols'] = cols;
+      XL.utils.book_append_sheet(wb, ws, (d.name || 'Hoja' + (si + 1)).slice(0, 31));
+    });
+    const out = XL.write(wb, {type: 'array', bookType: {'.xls': 'biff8', '.ods': 'ods', '.xlsx': 'xlsx'}[ext] || 'xlsx', cellDates: ext !== '.xls'});
+    return new Blob([out], {type: MIME[ext] || 'application/octet-stream'});
+  }
+  OPEN.oldsheet = async opts => sheetOpen('sheetjs', opts);
+
+  /* ================= Presentaciones (.pptx y .odp): solo ver ================= */
+  const EMU = 1 / 9525;  // EMU → px
+  async function pptxSlides(zip) {
+    const rd = async p2 => zip.file(p2) ? xmlDoc(await zip.file(p2).async('string')) : null;
+    const rels = async p2 => { const d = await rd(p2.replace(/([^/]+)$/, '_rels/$1.rels')); const m = {}; if (d) for (const r of d.getElementsByTagName('Relationship')) m[r.getAttribute('Id')] = {target: new URL(r.getAttribute('Target'), 'http://x/' + p2).pathname.slice(1), type: r.getAttribute('Type')}; return m; };
+    const pres = await rd('ppt/presentation.xml'), prel = await rels('ppt/presentation.xml');
+    const sz = pres.getElementsByTagName('p:sldSz')[0], W = +sz.getAttribute('cx') * EMU, H = +sz.getAttribute('cy') * EMU;
+    const theme = Object.values(prel).find(r => /theme$/.test(r.type)); const th = theme ? await rd(theme.target) : null;
+    const scheme = {}; if (th) { const cs = th.getElementsByTagName('a:clrScheme')[0]; if (cs) for (const c of cs.children) { const v = c.getElementsByTagName('a:srgbClr')[0]?.getAttribute('val') || c.getElementsByTagName('a:sysClr')[0]?.getAttribute('lastClr'); if (v) scheme[c.localName] = '#' + v; } }
+    Object.assign(scheme, {tx1: scheme.dk1, bg1: scheme.lt1, tx2: scheme.dk2, bg2: scheme.lt2});
+    const color = n => { if (!n) return null; const s2 = n.getElementsByTagName('a:srgbClr')[0]; if (s2) return '#' + s2.getAttribute('val'); const sc = n.getElementsByTagName('a:schemeClr')[0]; if (sc) return scheme[sc.getAttribute('val')] || null; return null; };
+    const direct = (n, tag) => [...(n?.children || [])].find(c => c.tagName === tag);
+    const xfrm = sp => { const x = sp.getElementsByTagName('a:xfrm')[0] || sp.getElementsByTagName('p:xfrm')[0]; if (!x) return null; const o = direct(x, 'a:off'), e = direct(x, 'a:ext'); if (!o || !e) return null; return {x: +o.getAttribute('x') * EMU, y: +o.getAttribute('y') * EMU, w: +e.getAttribute('cx') * EMU, h: +e.getAttribute('cy') * EMU}; };
+    const phOf = sp => { const ph = sp.getElementsByTagName('p:ph')[0]; return ph ? {type: ph.getAttribute('type') || 'body', idx: ph.getAttribute('idx')} : null; };
+    const findPh = (doc, ph) => { if (!doc || !ph) return null; for (const sp of doc.getElementsByTagName('p:sp')) { const p2 = phOf(sp); if (p2 && ((ph.idx && p2.idx === ph.idx) || p2.type === ph.type || (ph.type === 'ctrTitle' && p2.type === 'title') || (ph.type === 'subTitle' && p2.type === 'body'))) return sp; } return null; };
+    const order = [...pres.getElementsByTagName('p:sldId')].map(s2 => prel[s2.getAttribute('r:id')]?.target).filter(Boolean);
+    const out = [];
+    for (const path of order.slice(0, 300)) {
+      const sd = await rd(path), sr = await rels(path);
+      const layoutP = Object.values(sr).find(r => /slideLayout$/.test(r.type))?.target, layout = layoutP ? await rd(layoutP) : null;
+      const masterP = layoutP ? Object.values(await rels(layoutP)).find(r => /slideMaster$/.test(r.type))?.target : null, master = masterP ? await rd(masterP) : null;
+      const bgOf = d => { const bg = d?.getElementsByTagName('p:bg')[0]; return bg ? color(bg.getElementsByTagName('a:solidFill')[0]) : null; };
+      const slide = {w: W, h: H, bg: bgOf(sd) || bgOf(layout) || bgOf(master) || '#ffffff', items: []};
+      const media = async (relId, rmap) => { const r = rmap[relId]; if (!r || !zip.file(r.target)) return null; const ext = r.target.split('.').pop().toLowerCase(); if (!/^(png|jpe?g|gif|bmp|svg)$/.test(ext)) return null; return `data:image/${ext === 'svg' ? 'svg+xml' : ext.replace('jpg', 'jpeg')};base64,` + await zip.file(r.target).async('base64'); };
+      const walk = async (tree, off = {dx: 0, dy: 0, sx: 1, sy: 1}) => {
+        for (const n of tree.children) {
+          const ln = n.tagName;
+          if (ln === 'p:grpSp') {
+            const g = n.getElementsByTagName('a:xfrm')[0]; let o2 = off;
+            if (g) { const co = direct(g, 'a:chOff'), ce = direct(g, 'a:chExt'), x = xfrm(n); if (co && ce && x && +ce.getAttribute('cx')) { const sx = x.w / (+ce.getAttribute('cx') * EMU), sy = x.h / (+ce.getAttribute('cy') * EMU) || 1; o2 = {dx: off.dx + (x.x - +co.getAttribute('x') * EMU * sx) * off.sx, dy: off.dy + (x.y - +co.getAttribute('y') * EMU * sy) * off.sy, sx: off.sx * sx, sy: off.sy * sy}; } }
+            await walk(n, o2); continue;
+          }
+          if (!['p:sp', 'p:pic', 'p:graphicFrame', 'p:cxnSp'].includes(ln)) continue;
+          const ph = phOf(n);
+          let box = xfrm(n) || xfrm(findPh(layout, ph) || document.createElement('x')) || xfrm(findPh(master, ph) || document.createElement('x'));
+          if (!box) continue;
+          box = {x: off.dx + box.x * off.sx, y: off.dy + box.y * off.sy, w: box.w * off.sx, h: box.h * off.sy};
+          const it = {box};
+          if (ln === 'p:pic') { const b = n.getElementsByTagName('a:blip')[0]; it.img = b ? await media(b.getAttribute('r:embed'), sr) : null; if (!it.img) continue; }
+          else if (ln === 'p:graphicFrame') {
+            const tb = n.getElementsByTagName('a:tbl')[0]; if (!tb) continue;
+            it.table = [...tb.getElementsByTagName('a:tr')].map(tr => [...tr.getElementsByTagName('a:tc')].map(tc => [...tc.getElementsByTagName('a:p')].map(p2 => [...p2.getElementsByTagName('a:t')].map(x => x.textContent).join('')).join('\n')));
+          } else {
+            const spPr = direct(n, 'p:spPr'); it.fill = color(direct(spPr, 'a:solidFill')); const ln2 = spPr ? direct(spPr, 'a:ln') : null; it.line = ln2 && !direct(ln2, 'a:noFill') ? color(direct(ln2, 'a:solidFill')) : null;
+            const geom = spPr?.getElementsByTagName('a:prstGeom')[0]?.getAttribute('prst'); it.round = geom === 'ellipse' ? '50%' : geom === 'roundRect' ? '12px' : '';
+            const tx = n.getElementsByTagName('p:txBody')[0];
+            if (tx) {
+              const isTitle = ph && /title/i.test(ph.type);
+              const anchor = tx.getElementsByTagName('a:bodyPr')[0]?.getAttribute('anchor');
+              it.anchor = anchor === 'ctr' ? 'center' : anchor === 'b' ? 'flex-end' : (isTitle ? 'center' : 'flex-start');
+              it.paras = [...tx.getElementsByTagName('a:p')].map(p2 => {
+                const pPr = direct(p2, 'a:pPr'), algn = pPr?.getAttribute('algn');
+                const bullet = !isTitle && ph && ph.type === 'body' && !pPr?.getElementsByTagName('a:buNone')[0];
+                return {align: {ctr: 'center', r: 'right', just: 'justify'}[algn] || (ph?.type === 'ctrTitle' || ph?.type === 'subTitle' ? 'center' : 'left'), lvl: +(pPr?.getAttribute('lvl') || 0), bullet,
+                  runs: [...p2.children].filter(r => r.tagName === 'a:r' || r.tagName === 'a:br' || r.tagName === 'a:fld').map(r => {
+                    if (r.tagName === 'a:br') return {br: 1};
+                    const rp = direct(r, 'a:rPr'); return {text: r.getElementsByTagName('a:t')[0]?.textContent || '', b: rp?.getAttribute('b') === '1', i: rp?.getAttribute('i') === '1', u: rp?.getAttribute('u') && rp.getAttribute('u') !== 'none',
+                      sz: rp?.getAttribute('sz') ? +rp.getAttribute('sz') / 100 : null, color: color(direct(rp, 'a:solidFill'))};
+                  })};
+              });
+              const msz = (st2, lvl = 1) => { const x = master?.getElementsByTagName('p:' + st2)[0]?.getElementsByTagName('a:lvl' + lvl + 'pPr')[0]?.getElementsByTagName('a:defRPr')[0]?.getAttribute('sz'); return x ? +x / 100 : null; };
+              const tsz = msz('titleStyle'), bsz = msz('bodyStyle'), lsz = l => msz('bodyStyle', l + 1) || bsz;
+              it.defSize = isTitle ? (ph.type === 'ctrTitle' ? Math.max(44, tsz || 0) : tsz || 36) : ph?.type === 'subTitle' ? 24 : ph ? (bsz || 20) : (msz('otherStyle') || 18);
+              if (ph && !isTitle && ph.type !== 'subTitle') it.paras.forEach(p3 => { p3.lvlSize = lsz(p3.lvl); });
+              const fref = direct(n, 'p:style') ? direct(direct(n, 'p:style'), 'a:fontRef') : null;  // color del texto según el estilo de la forma
+              it.defColor = (fref && color(fref)) || scheme.tx1 || '#000';
+            }
+            if (!it.paras && !it.fill && !it.line) continue;
+          }
+          slide.items.push(it);
+        }
+      };
+      const tree = sd.getElementsByTagName('p:spTree')[0]; if (tree) await walk(tree);
+      out.push(slide);
+    }
+    return out;
+  }
+  async function odpSlides(zip) {
+    const content = xmlDoc(await zip.file('content.xml').async('string'));
+    const styles = zip.file('styles.xml') ? xmlDoc(await zip.file('styles.xml').async('string')) : null;
+    // tamaño de la diapositiva: el del diseño de página de la página maestra que usan las diapositivas
+    const mpName = content.getElementsByTagName('draw:page')[0]?.getAttribute('draw:master-page-name');
+    const mp = [...(styles?.getElementsByTagName('style:master-page') || [])].find(m => m.getAttribute('style:name') === mpName);
+    const plName = mp?.getAttribute('style:page-layout-name');
+    const plEl = [...(styles?.getElementsByTagName('style:page-layout') || [])].find(l => l.getAttribute('style:name') === plName);
+    const pl = plEl?.getElementsByTagName('style:page-layout-properties')[0] || styles?.getElementsByTagName('style:page-layout-properties')[0];
+    const W = lenPx(pl?.getAttribute('fo:page-width')) || 1024, H = lenPx(pl?.getAttribute('fo:page-height')) || 768;
+    const st = odfStyles(styles, content), out = [];
+    for (const pg of [...content.getElementsByTagName('draw:page')].slice(0, 300)) {
+      const slide = {w: W, h: H, bg: '#ffffff', items: []};
+      for (const n of pg.children) {
+        const box = {x: lenPx(n.getAttribute('svg:x')) || 0, y: lenPx(n.getAttribute('svg:y')) || 0, w: lenPx(n.getAttribute('svg:width')) || 0, h: lenPx(n.getAttribute('svg:height')) || 0};
+        if (!box.w || !box.h) continue;
+        const it = {box, anchor: 'flex-start', defSize: n.getAttribute('presentation:class') === 'title' ? 36 : 18, defColor: '#000'};
+        const im = n.getElementsByTagName('draw:image')[0], href = im?.getAttribute('xlink:href');
+        if (href && zip.file(href) && /\.(png|jpe?g|gif|bmp|svg)$/i.test(href)) { const ext = href.split('.').pop().toLowerCase(); it.img = `data:image/${ext === 'svg' ? 'svg+xml' : ext.replace('jpg', 'jpeg')};base64,` + await zip.file(href).async('base64'); }
+        const ps = [...n.getElementsByTagName('text:p')];
+        if (ps.length) {
+          if (n.getAttribute('presentation:class') === 'title') it.anchor = 'center';
+          it.paras = ps.map(p2 => ({align: st.get(p2.getAttribute('text:style-name')).align || 'left', lvl: 0, bullet: !!p2.closest?.('list-item') || p2.parentElement?.localName === 'list-item',
+            runs: [...p2.childNodes].map(r => { if (r.nodeType === 3) return {text: r.data}; if (r.localName === 'line-break') return {br: 1}; const o = st.get(r.getAttribute?.('text:style-name')); return {text: r.textContent, b: o.bold, i: o.italic, u: o.underline, sz: o.size, color: o.color}; })}));
+        }
+        if (it.img || it.paras) slide.items.push(it);
+      }
+      out.push(slide);
+    }
+    return out;
+  }
+  function slideEl(s2) {
+    const d = document.createElement('div'); d.className = 'of-slide'; d.style.cssText = `width:${s2.w}px;height:${s2.h}px;background:${s2.bg}`;
+    for (const it of s2.items) {
+      const e = document.createElement('div'); e.className = 'of-sh';
+      e.style.cssText = `left:${it.box.x}px;top:${it.box.y}px;width:${it.box.w}px;height:${it.box.h}px;${it.fill ? `background:${it.fill};` : ''}${it.line ? `border:1px solid ${it.line};` : ''}${it.round ? `border-radius:${it.round};` : ''}justify-content:${it.anchor || 'flex-start'}`;
+      if (it.img) { const im = document.createElement('img'); im.src = it.img; im.alt = ''; e.appendChild(im); }
+      else if (it.table) e.innerHTML = `<table>${it.table.map(r => `<tr>${r.map(c => `<td>${esc(c).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`).join('')}</table>`;
+      if (it.paras) e.insertAdjacentHTML('beforeend', it.paras.map(p2 => `<p style="text-align:${p2.align};margin-left:${p2.lvl * 24}px">${p2.bullet && p2.runs.some(r => r.text) ? `<span style="font-size:${(p2.runs.find(r => r.sz)?.sz || p2.lvlSize || it.defSize) * 4 / 3}px;color:${it.defColor}">• </span>` : ''}${p2.runs.map(r => r.br ? '<br>' :
+        `<span style="font-size:${(r.sz || p2.lvlSize || it.defSize) * 4 / 3}px;color:${r.color || it.defColor};${r.b ? 'font-weight:bold;' : ''}${r.i ? 'font-style:italic;' : ''}${r.u ? 'text-decoration:underline;' : ''}">${esc(r.text || '')}</span>`).join('') || '&nbsp;'}</p>`).join(''));
+      d.appendChild(e);
+    }
+    return d;
+  }
+  OPEN.slides = async () => {
+    const Z = await Zip(), zip = await Z.loadAsync(await fetchBuf());
+    const slides = extOf(O.name) === '.odp' ? await odpSlides(zip) : await pptxSlides(zip);
+    O.viewOnly = true;
+    tools([`<span class="tb-txt hint">${esc(slides.length === 1 ? t('1 diapositiva') : t('{n} diapositivas', {n: slides.length}))} · ${esc(t('Las presentaciones se pueden ver e imprimir; para cambiarlas, descárgalas.'))}</span>`]);
+    el('ofBody').innerHTML = '<div class="of-scroll of-slides" id="ofSlides"></div>';
+    const box = el('ofSlides');
+    slides.forEach((s2, i) => { const w = document.createElement('div'); w.className = 'of-slide-wrap'; w.dataset.n = i + 1; w.appendChild(slideEl(s2)); box.appendChild(w); });
+    const fit = () => box.querySelectorAll('.of-slide-wrap').forEach((w, i) => { const s2 = slides[i], sc = Math.min(1.2, (box.clientWidth - 32) / s2.w, Math.max(200, box.clientHeight - 40) / s2.h); w.style.width = s2.w * sc + 'px'; w.style.height = s2.h * sc + 'px'; w.firstChild.style.transform = `scale(${sc})`; });
+    fit(); const ro = new ResizeObserver(fit); ro.observe(box); O.cleanup.push(() => ro.disconnect());
+    O.export = async () => new Blob([await fetchBuf()]);
+    O.pages = box2 => slides.map(s2 => { const sc = Math.min(box2.w / s2.w, box2.h / s2.h), w = document.createElement('div'); w.style.cssText = `width:${s2.w * sc}px;height:${s2.h * sc}px;overflow:hidden`; const e = slideEl(s2); e.style.transform = `scale(${sc})`; e.style.transformOrigin = '0 0'; w.appendChild(e); return w; });
+    O.pagesMargin = 'estrecho'; O.pagesOrient = 'landscape'; O.print = printPreview;
+  };
+
+  /* ================= Bases de datos de Access (.mdb, .accdb): ver y pasar a Excel ================= */
+  OPEN.access = async () => {
+    await lib('mdb-reader.min.js', 'MDBReader');
+    const buf = await fetchBuf();
+    let db;
+    try { db = new window.MDBReader(window.MDBBuffer.from(buf)); } catch (e) { throw new Error(/password/i.test(e.message) ? t('Esta base de datos tiene contraseña') : e.message); }
+    const names = db.getTableNames();
+    O.viewOnly = true;
+    let cur = names[0], limit = 500;
+    const fmtV = v => v == null ? '' : v instanceof Date ? v.toLocaleString(LOCALE) : typeof v === 'boolean' ? (v ? '✓' : '') : typeof v === 'number' && !Number.isInteger(v) ? String(Math.abs(+v.toPrecision(7) - v) <= Math.abs(v) * 1e-7 ? +v.toPrecision(7) : v) : typeof v === 'object' ? (v.length != null ? `[${fmtSize(v.length)}]` : JSON.stringify(v)) : String(v);
+    tools([`<select id="acT" class="tb-sel" title="${esc(t('Tabla'))}">${names.map(n => `<option>${esc(n)}</option>`).join('')}</select>`, '<span id="acInfo" class="tb-txt"></span>', '|',
+      ['ac-xlsx', 'Guardar todas las tablas como hoja de cálculo (.xlsx)', 'sheet', 'Pasar a Excel']]);
+    el('ofBody').innerHTML = '<div class="of-scroll of-access"><div id="acGrid"></div></div>';
+    const show = () => {
+      const tb = db.getTable(cur), cols = tb.getColumnNames(), rows = tb.getData({rowLimit: limit});
+      el('acInfo').textContent = t('{n} filas', {n: tb.rowCount.toLocaleString(LOCALE)}) + (tb.rowCount > rows.length ? ' · ' + t('se ven {n}', {n: rows.length}) : '');
+      el('acGrid').innerHTML = `<table class="of-dbt"><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${esc(fmtV(r[c]))}</td>`).join('')}</tr>`).join('')}</tbody></table>
+        ${tb.rowCount > rows.length ? `<button class="btn small" id="acMore" style="margin:12px">${t('Ver más filas')}</button>` : ''}`;
+      el('acMore')?.addEventListener('click', () => { limit += 2000; show(); });
+    };
+    el('acT').onchange = e => { cur = e.target.value; limit = 500; show(); };
+    el('ofTools').addEventListener('click', e => { if (e.target.closest('[data-tb="ac-xlsx"]')) save(true); });
+    if (names.length) show(); else el('acGrid').innerHTML = `<p class="pv-wait">${t('No hay tablas')}</p>`;
+    O.export = async () => {
+      const EJ = await ExcelJS(), wb = new EJ.Workbook(), used = new Set();
+      for (const n of names) {
+        const tb = db.getTable(n), cols = tb.getColumnNames();
+        let nm = n.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Tabla'; while (used.has(nm.toLowerCase())) nm = nm.slice(0, 28) + '_' + used.size; used.add(nm.toLowerCase());
+        const ws = wb.addWorksheet(nm); ws.addRow(cols).font = {bold: true};
+        for (const r of tb.getData({rowLimit: 1048000})) ws.addRow(cols.map(c => { const v = r[c]; return v == null ? null : (typeof v === 'object' && !(v instanceof Date)) ? fmtV(v) : typeof v === 'bigint' ? Number(v) : v; }));
+        ws.columns.forEach(c => { c.width = 16; });
+      }
+      return new Blob([await wb.xlsx.writeBuffer()], {type: MIME['.xlsx']});
+    };
+    O.pages = (box, host) => { const tbl = el('acGrid').querySelector('table'); return tbl ? flowPages([tbl.cloneNode(true)], box, 'pv-dbpage', host) : []; };
+    O.pagesOrient = 'landscape'; O.print = printPreview;
   };
 
   /* ================= crear documentos nuevos ================= */

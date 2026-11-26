@@ -79,17 +79,57 @@ body.office-open>#app{display:none}  /* así nada de detrás ensancha la pantall
   .of-top .btn{padding:8px 10px}
 }
 
-/* imprimir: solo el documento */
+/* vista previa de impresión */
+.of-pv{position:absolute;inset:0;z-index:5;background:var(--bg);display:flex;flex-direction:column}
+.pv-tools{flex-wrap:wrap;gap:6px 14px;padding:6px 12px}
+.pv-tools label{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.pv-scroll{flex:1;overflow:auto;background:#e8eaed;padding:16px 12px;-webkit-overflow-scrolling:touch}
+:root[data-theme="dark"] .pv-scroll{background:#2b2c2f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pv-scroll{background:#2b2c2f}}
+.pv-pages{display:flex;flex-direction:column;align-items:center;gap:18px;margin:0 auto;width:max-content}
+.pv-wait{padding:40px;color:var(--muted);text-align:center}
+.pv-page{background:#fff;color:#111;box-shadow:0 1px 5px rgba(0,0,0,.3);overflow:hidden;box-sizing:border-box;color-scheme:light;flex:none}
+.pv-in{width:100%;height:100%;overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
+.pv-in>.pv-flow{margin:0}
+.pv-img{display:block}
+.pv-measure{position:absolute;left:-10000px;top:0;visibility:hidden}
+.of-page.pv-flow{padding:0;margin:0;min-height:0;max-width:none;box-shadow:none}
+.pv-textpage{font:10pt/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;color:#111}
+.pv-docx{background:none!important;padding:0!important;display:block!important;overflow:hidden}
+.pv-docx>section.docx{box-shadow:none!important;margin:0!important}
 @media print{
-  body.of-printing>*:not(#office){display:none!important}
-  body.of-printing #office{position:static;display:block;background:#fff}
-  body.of-printing .of-top,body.of-printing .of-tools,body.of-printing .of-note{display:none!important}
-  body.of-printing .of-body,body.of-printing .of-scroll,body.of-printing .of-textwrap{position:static;overflow:visible;background:#fff}
-  body.of-printing .of-page{box-shadow:none;margin:0;padding:0;width:auto;max-width:none;min-height:0}
-  body.of-printing #ofDocx{zoom:1!important}
-  body.of-printing .of-docview .docx-wrapper{padding:0!important}
-  body.of-printing .of-docview section.docx{box-shadow:none!important;margin:0!important}
-  body.of-printing .of-text{border:0;height:auto;overflow:visible}
+  body.pv-printing>*:not(#office){display:none!important}
+  body.pv-printing #office{position:static;display:block;background:#fff}
+  body.pv-printing #office>*:not(#ofPv){display:none!important}
+  body.pv-printing .of-pv{position:static;display:block;background:#fff}
+  body.pv-printing .of-pv>.of-top,body.pv-printing .pv-tools{display:none!important}
+  body.pv-printing .pv-scroll{overflow:visible;padding:0;background:#fff}
+  body.pv-printing .pv-pages{display:block;gap:0;zoom:1!important;width:auto}
+  body.pv-printing .pv-page{box-shadow:none;margin:0;break-after:page;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.pv-printing .pv-page:last-child{break-after:auto;page-break-after:auto}
 }
+
 /* la hoja esconde su barra en móviles; aquí se deja visible (tiene botón «Más» para lo que no cabe) */
 .of-sheet .x-spreadsheet-toolbar{display:block!important}
+
+/* presentaciones (solo ver) */
+.of-slides{padding:16px 0}
+.of-slide-wrap{position:relative;margin:0 auto 16px;box-shadow:0 1px 4px rgba(0,0,0,.3);overflow:hidden;background:#fff}
+.of-slide-wrap::after{content:attr(data-n);position:absolute;right:6px;bottom:4px;font:12px system-ui,sans-serif;color:#888}
+.of-slide{position:relative;transform-origin:0 0;overflow:hidden;color:#000;font-family:Calibri,Carlito,Arial,sans-serif}
+.of-sh{position:absolute;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;padding:4px 8px}
+.of-sh p{margin:0 0 4px;line-height:1.15;overflow-wrap:break-word}
+.of-sh img{width:100%;height:100%;object-fit:contain}
+.of-sh table{border-collapse:collapse;width:100%;font-size:16px}
+.of-sh td{border:1px solid #999;padding:4px 6px;vertical-align:top}
+
+/* bases de datos (Access) */
+.of-access{background:var(--bg,#fff)}
+.of-dbt{border-collapse:collapse;font-size:13px;min-width:100%;background:#fff;color:#111}
+.of-dbt th,.of-dbt td{border:1px solid #d0d3d8;padding:4px 8px;text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+.of-dbt th{position:sticky;top:0;background:#eef1f5;font-weight:600;z-index:1}
+.of-dbt tr:nth-child(even) td{background:#f8f9fb}
+.pv-dbpage{font:10px Arial,sans-serif;color:#000}
+.pv-dbpage .of-dbt{font-size:10px;min-width:0;width:100%;table-layout:auto}
+.pv-dbpage .of-dbt th{position:static}
+.pv-dbpage .of-dbt th,.pv-dbpage .of-dbt td{white-space:normal;max-width:none;padding:2px 4px;word-break:break-word}
