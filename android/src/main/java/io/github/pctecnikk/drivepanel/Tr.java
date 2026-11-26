@@ -234,6 +234,14 @@ final class Tr {
         e(" al subir ", " uploading ");
         e("; se reintentará", "; it will retry");
         e("El servidor ha cambiado de dirección; se reintentará", "The server address has changed; it will retry");
+        e("Falta el permiso para ver tus fotos: abre esta pantalla, pulsa «Copiar ahora» y elige «Permitir todo»", "Permission to see your photos is missing: open this screen, tap “Copy now” and choose “Allow all”");
+        e(" · se copian las fotos y vídeos nuevos desde el ", " · new photos and videos are copied since ");
+        e(" · Ojo: solo tiene permiso para algunas fotos; pulsa «Copiar ahora» y elige «Permitir todo»", " · Note: it can only see some photos; tap “Copy now” and choose “Allow all”");
+        e("Esperando el permiso para ver tus fotos…", "Waiting for permission to see your photos…");
+        e("Copiar también las que ya tenía", "Also copy the ones I already had");
+        e("¿Copiar también las fotos antiguas?", "Also copy older photos?");
+        e("Se subirán todas las fotos y vídeos que ya tienes en el móvil. Las que ya estén en DrivePanel no se repiten. Puede tardar bastante la primera vez.", "All photos and videos already on your phone will be uploaded. Those already in DrivePanel are not repeated. The first time may take a while.");
+        e("Copiar todas", "Copy all");
         e("Todo copiado · última copia ", "Everything copied · last backup ");
         e("1 foto o vídeo copiado a DrivePanel", "1 photo or video copied to DrivePanel");
         e(" fotos y vídeos copiados a DrivePanel", " photos and videos copied to DrivePanel");

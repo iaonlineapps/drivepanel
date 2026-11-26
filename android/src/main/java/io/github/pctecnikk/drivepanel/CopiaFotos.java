@@ -241,6 +241,15 @@ public class CopiaFotos extends JobService {
         }
     }
 
+    /** 0 = sin permiso para ver fotos, 1 = solo algunas fotos (Android 14), 2 = todas. */
+    static int access(Context c) {
+        String p = Build.VERSION.SDK_INT >= 33 ? "android.permission.READ_MEDIA_IMAGES" : "android.permission.READ_EXTERNAL_STORAGE";
+        if (c.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED) return 2;
+        if (Build.VERSION.SDK_INT >= 34 && c.checkSelfPermission("android.permission.READ_MEDIA_VISUAL_USER_SELECTED")
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) return 1;
+        return 0;
+    }
+
     // ------------------------------------------------------------------ Pausar, seguir, cancelar
 
     static boolean paused(Context c) {
@@ -301,10 +310,20 @@ public class CopiaFotos extends JobService {
             setStatus(c, Tr.t("Abre DrivePanel y entra con tu usuario para que pueda copiar"));
             return false;
         }
+        int acc = access(c);
+        if (acc == 0) {
+            setStatus(c, Tr.t("Falta el permiso para ver tus fotos: abre esta pantalla, pulsa «Copiar ahora» y elige «Permitir todo»"));
+            return false;
+        }
         List<Media> list = pending(c);
         if (!list.isEmpty()) base = followRedirect(c, base);
         if (list.isEmpty()) {
-            setStatus(c, Tr.t("Todo copiado"));
+            StringBuilder why = new StringBuilder(Tr.t("Todo copiado"));
+            long since = p.getLong(K_SINCE, 0);
+            if (since > 0) why.append(Tr.t(" · se copian las fotos y vídeos nuevos desde el "))
+                    .append(new SimpleDateFormat("d/M/yyyy HH:mm", new Locale("es", "ES")).format(new Date(since * 1000)));
+            if (acc == 1) why.append(Tr.t(" · Ojo: solo tiene permiso para algunas fotos; pulsa «Copiar ahora» y elige «Permitir todo»"));
+            setStatus(c, why.toString());
             return false;
         }
         String folder = p.getString(K_FOLDER, Tr.t(DEFAULT_FOLDER));

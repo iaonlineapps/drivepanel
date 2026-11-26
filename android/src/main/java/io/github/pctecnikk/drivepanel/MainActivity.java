@@ -968,6 +968,10 @@ public class MainActivity extends Activity {
     }
 
     private String[] mediaPermissions() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            return new String[]{"android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO",
+                    "android.permission.READ_MEDIA_VISUAL_USER_SELECTED", "android.permission.POST_NOTIFICATIONS"};
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             return new String[]{"android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO",
                     "android.permission.POST_NOTIFICATIONS"};
@@ -1130,7 +1134,7 @@ public class MainActivity extends Activity {
                     if (h.length > 0) lGraph.add(h[h.length - 1], frac);
                 }
                 seen[0] = seq;
-            } else if (wasRunning[0] || CopiaFotos.Live.halt) {
+            } else if (prefs.getBoolean(CopiaFotos.K_ON, false)) {
                 String s2 = prefs.getString(CopiaFotos.K_STATUS, null);
                 st.setText(Tr.t("\nEstado: ") + (s2 != null ? s2 : Tr.t("esperando")) + Tr.t("\nCopiadas hasta ahora: ") + prefs.getLong(CopiaFotos.K_TOTAL, 0)
                         + Tr.t("\nVersión de la app: ") + Novedades.version(MainActivity.this) + " (" + versionCode() + ")");
@@ -1146,11 +1150,41 @@ public class MainActivity extends Activity {
             now.setText(CopiaFotos.paused(this) ? Tr.t("Reanudar copia") : Tr.t("Copiar ahora"));
             now.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
                 saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
+                if (CopiaFotos.access(MainActivity.this) < 2) {
+                    // Sin permiso (o solo para algunas fotos): se pide; al aceptarlo empieza a copiar
+                    CopiaFotos.setStatus(MainActivity.this, Tr.t("Esperando el permiso para ver tus fotos…"));
+                    requestPermissions(mediaPermissions(), REQ_MEDIA);
+                    dlg.dismiss();
+                    return;
+                }
                 if (CopiaFotos.paused(MainActivity.this)) CopiaFotos.resume(MainActivity.this);
                 else CopiaFotos.runNow(MainActivity.this);
                 toast(Tr.t("Copiando…"));
             } });
             box.addView(now);
+
+            // Si se eligio "solo las nuevas", poder copiar tambien las que ya habia en el movil
+            if (prefs.getLong(CopiaFotos.K_SINCE, 0) > 0) {
+                final Button old = new Button(this);
+                old.setText(Tr.t("Copiar también las que ya tenía"));
+                old.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle(Tr.t("¿Copiar también las fotos antiguas?"))
+                            .setMessage(Tr.t("Se subirán todas las fotos y vídeos que ya tienes en el móvil. Las que ya estén en DrivePanel no se repiten. Puede tardar bastante la primera vez."))
+                            .setPositiveButton(Tr.t("Copiar todas"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
+                                prefs.edit().putLong(CopiaFotos.K_SINCE, 0).putLong(CopiaFotos.K_SINCE_ID, -1)
+                                        .putBoolean(CopiaFotos.K_PAUSED, false).apply();
+                                old.setVisibility(View.GONE);
+                                if (CopiaFotos.access(MainActivity.this) < 2) requestPermissions(mediaPermissions(), REQ_MEDIA);
+                                else CopiaFotos.runNow(MainActivity.this);
+                                toast(Tr.t("Copiando…"));
+                            } })
+                            .setNegativeButton(Tr.t("Cancelar"), null)
+                            .show();
+                } });
+                box.addView(old);
+            }
         }
     }
 

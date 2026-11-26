@@ -2,6 +2,7 @@
 
 ## Version 1.6.6
 - Fixed automatic photo backup when you use your own domain with https (for example behind Pangolin). If the saved address was http:// and the server sends you to https://, the app now saves the https one and photos upload on their own again. Nothing to do: just open the app once.
+- Clearer photo backup: if the app can't see your photos (or only some of them), it now tells you instead of saying “Everything copied”, and “Copy now” asks for the permission. If you chose “Only new ones”, the status says from which day it copies, and there is an “Also copy the ones I already had” button. The status updates live when you tap “Copy now”.
 - If you type a domain without http:// or https:// (for example drive.mydomain.com), the app uses https. A home IP (192.168.1.50:8090) still uses http.
 
 ## Version 1.6.5

@@ -4,6 +4,7 @@
 
 ## Versión 1.6.6
 - Arreglada la copia automática de fotos cuando entras por tu dominio con https (por ejemplo detrás de Pangolin). Si la dirección guardada era http:// y el servidor la lleva a https://, la app ahora guarda la https y las fotos se vuelven a subir solas. No tienes que hacer nada: abre la app una vez y listo.
+- Copia de fotos más clara: si la app no tiene permiso para ver tus fotos (o solo para algunas), ahora te lo dice en vez de poner «Todo copiado», y «Copiar ahora» te pide el permiso. Si pusiste «Solo las nuevas», el estado dice desde qué día copia, y hay un botón «Copiar también las que ya tenía». El estado se actualiza en directo al pulsar «Copiar ahora».
 - Al escribir un dominio sin http:// ni https:// (por ejemplo drive.midominio.com), la app usa https. Con una IP de casa (192.168.1.50:8090) sigue usando http.
 
 ## Versión 1.6.5
