@@ -1080,6 +1080,28 @@ public class MainActivity extends Activity {
         st.setTextColor(0xFF5F6368);
         box.addView(st);
 
+        // Lo que la app ve en el movil: asi se nota si faltan los videos o algun permiso
+        final TextView seenTv = new TextView(this);
+        seenTv.setTextSize(13);
+        seenTv.setTextColor(0xFF5F6368);
+        if (on) {
+            box.addView(seenTv);
+            new Thread(new Runnable() { @Override public void run() {
+                final int[] n = CopiaFotos.counts(MainActivity.this);
+                runOnUiThread(new Runnable() { @Override public void run() {
+                    seenTv.setText(Tr.t("En el móvil: ") + n[0] + Tr.t(" fotos y ") + n[1] + Tr.t(" vídeos · faltan por copiar: ") + n[2]);
+                } });
+            } }).start();
+        }
+
+        // Sin el ahorro de bateria, Android deja que la copia siga de noche y con la pantalla apagada
+        if (on && !batteryFree()) {
+            Button bat = new Button(this);
+            bat.setText(Tr.t("Que no se pare con la pantalla apagada"));
+            bat.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { askBattery(); } });
+            box.addView(bat);
+        }
+
         AlertDialog.Builder b = new AlertDialog.Builder(this)
                 .setTitle(Tr.t("Copia automática de fotos"))
                 .setView(box)
@@ -1160,6 +1182,11 @@ public class MainActivity extends Activity {
                 if (CopiaFotos.paused(MainActivity.this)) CopiaFotos.resume(MainActivity.this);
                 else CopiaFotos.runNow(MainActivity.this);
                 toast(Tr.t("Copiando…"));
+                if (!batteryFree() && !prefs.getBoolean("battery_asked", false)) {
+                    prefs.edit().putBoolean("battery_asked", true).apply();
+                    dlg.dismiss();
+                    askBattery();
+                }
             } });
             box.addView(now);
 
@@ -1186,6 +1213,36 @@ public class MainActivity extends Activity {
                 box.addView(old);
             }
         }
+    }
+
+    /** true si DrivePanel ya no tiene el ahorro de bateria (Android no la duerme). */
+    private boolean batteryFree() {
+        if (Build.VERSION.SDK_INT < 23) return true;
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            return pm.isIgnoringBatteryOptimizations(getPackageName());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private void askBattery() {
+        new AlertDialog.Builder(this)
+                .setTitle(Tr.t("Que la copia no se pare"))
+                .setMessage(Tr.t("Para subir muchos gigas, Android tiene que dejar a DrivePanel seguir con la pantalla apagada y por la noche. En la siguiente ventana pulsa «Permitir».\n\nEn Xiaomi, Huawei u OnePlus quizá tengas que poner también «Sin restricciones» en Ajustes → Aplicaciones → DrivePanel → Batería."))
+                .setPositiveButton(Tr.t("Continuar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
+                    try {
+                        startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:" + getPackageName())));
+                    } catch (Exception e) {
+                        try {
+                            startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:" + getPackageName())));
+                        } catch (Exception ignored) { }
+                    }
+                } })
+                .setNegativeButton(Tr.t("Ahora no"), null)
+                .show();
     }
 
     @SuppressWarnings("deprecation")
@@ -1279,13 +1336,27 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().flush();
         if (web != null) web.onPause();
         descargas.stop();
+        screenTick.removeCallbacks(screenRun);
     }
+
+    // Mientras la copia de fotos sube y la app esta delante, la pantalla no se apaga
+    private final Handler screenTick = new Handler(Looper.getMainLooper());
+    private final Runnable screenRun = new Runnable() { @Override public void run() {
+        boolean busy = CopiaFotos.Live.running || CopiaServicio.active;
+        if (fullView == null) {
+            if (busy) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+        screenTick.postDelayed(this, 2000);
+    } };
 
     @Override
     protected void onResume() {
         super.onResume();
         if (web != null) web.onResume();
         descargas.start();
+        screenTick.removeCallbacks(screenRun);
+        screenTick.post(screenRun);
     }
 
     @Override

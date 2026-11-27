@@ -1,5 +1,12 @@
 # What's new in the DrivePanel Android app
 
+## Version 1.6.7
+- Automatic photo backup no longer stops on long backups (many gigabytes): it now uploads as an “upload in progress” with its own notification, like Google Photos. It keeps going with the screen off and at night, and retries by itself if the connection drops.
+- New “Don't stop when the screen is off” button: removes battery saving for DrivePanel so Android doesn't slow it down.
+- While it copies and the app is open, the screen stays on.
+- The backup screen shows how many photos and videos it sees on the phone and how many are still to copy. It also warns if the video permission is missing.
+- Before uploading, it asks DrivePanel what it already has and skips it straight away, without sending it again.
+
 ## Version 1.6.6
 - Fixed automatic photo backup when you use your own domain with https (for example behind Pangolin). If the saved address was http:// and the server sends you to https://, the app now saves the https one and photos upload on their own again. Nothing to do: just open the app once.
 - Clearer photo backup: if the app can't see your photos (or only some of them), it now tells you instead of saying “Everything copied”, and “Copy now” asks for the permission. If you chose “Only new ones”, the status says from which day it copies, and there is an “Also copy the ones I already had” button. The status updates live when you tap “Copy now”.
