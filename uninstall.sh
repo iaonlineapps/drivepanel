@@ -9,9 +9,9 @@ set -uo pipefail
 APP="DrivePanel"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONTAINER="drive-panel"
-IMAGES="drive-panel:latest ghcr.io/pctecnikk/drivepanel"
+IMAGES="drive-panel:latest ghcr.io/iaonlineapps/drivepanel"
 BACKUP="drivepanel"
-REPO="https://github.com/pctecnikk/drivepanel"
+REPO="https://github.com/iaonlineapps/drivepanel"
 DATA_DIR="./data"
 # si hay .env con DATA_DIR, manda ese
 if [ -f "$APP_DIR/.env" ]; then

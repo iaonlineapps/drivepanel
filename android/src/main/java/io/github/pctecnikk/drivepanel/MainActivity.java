@@ -302,7 +302,7 @@ public class MainActivity extends Activity {
         nbg.setCornerRadius(dp(10));
         need.setBackground(nbg);
         need.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
-            Novedades.open(MainActivity.this, "https://github.com/pctecnikk/drivepanel#2-instalar");
+            Novedades.open(MainActivity.this, "https://github.com/iaonlineapps/drivepanel#2-instalar");
         } });
         LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         nlp.setMargins(0, 0, 0, dp(18));

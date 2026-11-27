@@ -1238,7 +1238,7 @@ def share_delete(sid: int, u=Depends(current_user)):
 
 # --- enlace publico abierto en el navegador del movil: elegir app o navegador ----------
 _APP_PKG = "io.github.pctecnikk.drivepanel"
-_APP_RELEASES = "https://github.com/pctecnikk/drivepanel/releases"
+_APP_RELEASES = "https://github.com/iaonlineapps/drivepanel/releases"
 
 
 def _wants_choice(request: Request) -> bool:

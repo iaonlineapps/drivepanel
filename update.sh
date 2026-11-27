@@ -2,7 +2,7 @@
 # Actualiza DrivePanel a la última versión de GitHub, sin tocar tus datos.
 #
 # Uso en la Pi (o en cualquier Linux con Docker), por SSH:
-#   curl -fsSL https://raw.githubusercontent.com/pctecnikk/drivepanel/main/update.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/iaonlineapps/drivepanel/main/update.sh | bash
 # o, desde la carpeta de DrivePanel:
 #   ./update.sh
 #
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 NAME="DrivePanel"
-REPO="https://github.com/pctecnikk/drivepanel.git"
+REPO="https://github.com/iaonlineapps/drivepanel.git"
 CONTAINER="drive-panel"
 PORT_DEFAULT="8090"
 URL_PATH=""

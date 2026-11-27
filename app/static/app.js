@@ -546,7 +546,7 @@ function appIntent(url, name) {
   const abs = new URL(url, location.href).href;
   return 'intent://open?url=' + encodeURIComponent(abs) + '&name=' + encodeURIComponent(name) +
     '#Intent;scheme=drivepanel;package=io.github.pctecnikk.drivepanel;S.browser_fallback_url=' +
-    encodeURIComponent('https://github.com/pctecnikk/drivepanel/releases') + ';end';
+    encodeURIComponent('https://github.com/iaonlineapps/drivepanel/releases') + ';end';
 }
 function appOrHere(url, name) {
   dialog(`<h3>${t('Descargar {name}', {name: esc(name)})}</h3><p>${t('¿Dónde quieres descargarlo?')}</p><div class="choice-list" style="display:flex;flex-direction:column;gap:10px">
