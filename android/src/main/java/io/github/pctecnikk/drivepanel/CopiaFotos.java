@@ -45,7 +45,7 @@ public class CopiaFotos extends JobService {
 
     static final String K_ON = "auto_on", K_WIFI = "auto_wifi", K_FOLDER = "auto_folder", K_CAMERA = "auto_camera",
             K_SINCE = "auto_since", K_SINCE_ID = "auto_since_id", K_STATUS = "auto_status", K_LAST = "auto_last",
-            K_COOKIE = "auto_cookie", K_TOTAL = "auto_total", K_PAUSED = "auto_paused";
+            K_COOKIE = "auto_cookie", K_TOTAL = "auto_total", K_PAUSED = "auto_paused", K_START = "auto_start";
     static final String DEFAULT_FOLDER = "Fotos del móvil";
     private static final int JOB_PERIODIC = 41, JOB_TRIGGER = 42, JOB_NOW = 43;
     private static final String CHANNEL = "copia";
@@ -131,7 +131,7 @@ public class CopiaFotos extends JobService {
             try {
                 SharedPreferences p = prefs(CopiaFotos.this);
                 if (CopiaServicio.active || (p.getBoolean(K_ON, false) && !p.getBoolean(K_PAUSED, false)
-                        && access(CopiaFotos.this) > 0 && !pending(CopiaFotos.this).isEmpty()
+                        && access(CopiaFotos.this) > 0 && counts(CopiaFotos.this)[2] > 0
                         && CopiaServicio.start(CopiaFotos.this))) {
                     if (params.getJobId() == JOB_TRIGGER) scheduleTrigger(CopiaFotos.this);
                     jobFinished(params, false);
@@ -205,10 +205,25 @@ public class CopiaFotos extends JobService {
         Uri uri;
     }
 
-    /** Lista lo que falta por copiar, de lo mas antiguo a lo mas nuevo. */
+    /**
+     * Desde que fecha se copian las fotos (0 = todas las del movil). Es fija: lo que ya esta
+     * subido no se apunta aqui, se pregunta al servidor en cada copia, como Google Fotos.
+     */
+    static long start(Context c) {
+        SharedPreferences p = prefs(c);
+        if (!p.contains(K_START)) {
+            // Version anterior: si ya habia copiado muchas, se eligio "todas"
+            long v = p.getLong(K_TOTAL, 0) > 50 ? 0 : p.getLong(K_SINCE, 0);
+            p.edit().putLong(K_START, v).apply();
+            return v;
+        }
+        return p.getLong(K_START, 0);
+    }
+
+    /** Todas las fotos y videos del movil que tocan (desde la fecha elegida), de mas antiguo a mas nuevo. */
     static List<Media> pending(Context c) {
         SharedPreferences p = prefs(c);
-        long since = p.getLong(K_SINCE, 0), sinceId = p.getLong(K_SINCE_ID, -1);
+        long since = start(c), sinceId = -1;
         boolean camera = p.getBoolean(K_CAMERA, true);
         List<Media> out = new ArrayList<>();
         query(c.getContentResolver(), MediaStore.Images.Media.EXTERNAL_CONTENT_URI, since, sinceId, camera, out);
@@ -297,7 +312,7 @@ public class CopiaFotos extends JobService {
     static void cancel(Context c) {
         Live.halt = true;
         prefs(c).edit().putBoolean(K_PAUSED, false)
-                .putLong(K_SINCE, System.currentTimeMillis() / 1000).putLong(K_SINCE_ID, Long.MAX_VALUE).apply();
+                .putLong(K_START, System.currentTimeMillis() / 1000).apply();
         setStatus(c, Tr.t("Cancelada: las fotos que faltaban no se copian; las nuevas, sí"));
         notifications(c).cancel(NOTIF_PROGRESS);
     }
@@ -338,27 +353,37 @@ public class CopiaFotos extends JobService {
             setStatus(c, Tr.t("Falta el permiso para ver tus fotos: abre esta pantalla, pulsa «Copiar ahora» y elige «Permitir todo»"));
             return false;
         }
-        List<Media> list = pending(c);
-        if (!list.isEmpty()) base = followRedirect(c, base);
+        List<Media> phone = pending(c);
+        String folder = p.getString(K_FOLDER, Tr.t(DEFAULT_FOLDER));
+        String ua = "DrivePanelAndroid/" + version(c) + " (copia de fotos)";
+        List<Media> list = new ArrayList<>();
+        if (!phone.isEmpty()) {
+            base = followRedirect(c, base);
+            // Se pregunta a DrivePanel que tiene ya (mismo nombre y tamano): eso no se vuelve a subir
+            // y la copia sigue justo por donde se quedo, aunque se cortara a medias.
+            setStatus(c, Tr.t("Comprobando lo que ya está en DrivePanel…"));
+            java.util.Set<String> have = existing(base, cookie, ua, folder, phone);
+            if (have == null) {
+                setStatus(c, Tr.t("No se puede conectar con DrivePanel; se reintentará"));
+                return true;
+            }
+            for (Media m : phone) if (!have.contains(rel(m) + "|" + m.size)) list.add(m);
+        }
         if (list.isEmpty()) {
             StringBuilder why = new StringBuilder(Tr.t("Todo copiado"));
-            long since = p.getLong(K_SINCE, 0);
+            long since = start(c);
             if (since > 0) why.append(Tr.t(" · se copian las fotos y vídeos nuevos desde el "))
                     .append(new SimpleDateFormat("d/M/yyyy HH:mm", new Locale("es", "ES")).format(new Date(since * 1000)));
             if (acc == 1) why.append(Tr.t(" · Ojo: solo tiene permiso para algunas fotos o sin vídeos; pulsa «Copiar ahora» y elige «Permitir todo»"));
             setStatus(c, why.toString());
             return false;
         }
-        String folder = p.getString(K_FOLDER, Tr.t(DEFAULT_FOLDER));
-        String ua = "DrivePanelAndroid/" + version(c) + " (copia de fotos)";
-        // Lo que ya esta en DrivePanel (mismo nombre y tamano) se salta sin volver a mandarlo
-        setStatus(c, Tr.t("Comprobando lo que ya está en DrivePanel…"));
-        java.util.Set<String> have = existing(base, cookie, ua, folder, list);
         int done = 0, skipped = 0;
+        List<String> bad = new ArrayList<>();
         final NotificationManager nm = notifications(c);
         final Context ctx = c;
         long all = 0;
-        for (Media m : list) if (!have.contains(rel(m) + "|" + m.size)) all += m.size;
+        for (Media m : list) all += m.size;
         synchronized (Live.class) { Live.seq = 0; }
         Live.totalBytes = all;
         Live.doneBytes = 0;
@@ -403,8 +428,31 @@ public class CopiaFotos extends JobService {
                 Live.fileSent = 0;
                 progress(c, nm);
                 final ContentResolver cr = c.getContentResolver();
-                int r = have.contains(rel(m) + "|" + m.size) ? -1 : upload(new Opener() { @Override public InputStream open(Media x) throws Exception { return cr.openInputStream(x.uri); } },
+                // Tamano real del archivo (Android a veces guarda uno viejo)
+                long real = realSize(cr, m);
+                int r;
+                String key = rel(m) + "|" + m.size;
+                Integer tries = FAILS.get(key);
+                if (real < 0) r = -3;
+                else if (tries != null && tries >= 4) r = -4; // ya fallo varias veces: luego se reintenta
+                else {
+                    if (real > 0) m.size = real;
+                    r = upload(new Opener() { @Override public InputStream open(Media x) throws Exception { return cr.openInputStream(x.uri); } },
                         base, cookie, ua, folder, m, stop);
+                }
+                if (r == -3 || r == -4 || (r >= 400 && r < 500 && r != 401 && r != 408 && r != 429)) {
+                    // Este archivo no se puede subir (borrado, ilegible, nombre raro...): se salta y se sigue
+                    if (r != -4) FAILS.put(key, 99);
+                    bad.add(m.name);
+                    Live.doneBytes += m.size;
+                    continue;
+                }
+                if (r == 507) {
+                    setStatus(c, Tr.t("DrivePanel no tiene espacio (disco o cuota llenos); la copia está parada"));
+                    result(c, nm, Tr.t("La copia de fotos está parada"), Tr.t("No queda espacio en DrivePanel."));
+                    return false;
+                }
+                if (r >= 500) FAILS.put(key, (tries == null ? 0 : tries) + 1); // errores del servidor con este archivo
                 if (r == 401) {
                     setStatus(c, Tr.t("Tienes que volver a entrar en DrivePanel (la sesión ha caducado)"));
                     result(c, nm, Tr.t("La copia de fotos está parada"), Tr.t("Abre DrivePanel y vuelve a entrar con tu usuario."));
@@ -426,10 +474,9 @@ public class CopiaFotos extends JobService {
                 }
                 if (r == -1) skipped++; else done++;
                 Live.fileSent = 0;
-                if (r != -1 || !have.contains(rel(m) + "|" + m.size)) Live.doneBytes += m.size;
+                Live.doneBytes += m.size;
                 if (Live.halt) return false;
-                p.edit().putLong(K_SINCE, m.added).putLong(K_SINCE_ID, m.id)
-                        .putLong(K_TOTAL, p.getLong(K_TOTAL, 0) + (r == 200 ? 1 : 0)).apply();
+                p.edit().putLong(K_TOTAL, p.getLong(K_TOTAL, 0) + (r == 200 ? 1 : 0)).apply();
             }
         } finally {
             Live.running = false;
@@ -438,7 +485,9 @@ public class CopiaFotos extends JobService {
         }
         String when = new SimpleDateFormat("d/M HH:mm", new Locale("es", "ES")).format(new Date());
         p.edit().putString(K_LAST, when).apply();
-        setStatus(c, Tr.t("Todo copiado · última copia ") + when);
+        if (bad.isEmpty()) setStatus(c, Tr.t("Todo copiado · última copia ") + when);
+        else setStatus(c, Tr.t("Copia terminada · ") + when + " · " + bad.size() + Tr.t(" no se pudieron subir: ")
+                + TextUtilsJoin(bad));
         if (done > 0) result(c, nm, done == 1 ? Tr.t("1 foto o vídeo copiado a DrivePanel") : done + Tr.t(" fotos y vídeos copiados a DrivePanel"),
                 Tr.t("Carpeta: ") + (folder.isEmpty() ? Tr.t("Mi unidad") : folder));
         return false;
@@ -475,9 +524,12 @@ public class CopiaFotos extends JobService {
 
     /** 200 = subido, -1 = ya estaba, -2 = cortado, otro = codigo de error del servidor. */
     static int upload(Opener opener, String base, String cookie, String ua, String folder, Media m, Stop stop) throws Exception {
-        String uid = randomUid();
         String rel = rel(m);
-        long offset = 0;
+        // Mismo identificador para el mismo archivo: si se corta, sigue por el trozo donde se quedo
+        final String key = rel + "|" + m.size;
+        String uid = stableUid(key);
+        Long saved = RESUME.get(key);
+        long offset = saved == null ? 0 : saved;
         while (offset < m.size || m.size == 0) {
             if (stop.stop()) return -2;
             int len = (int) Math.min(CHUNK, m.size - offset);
@@ -494,17 +546,31 @@ public class CopiaFotos extends JobService {
             h.setRequestProperty("Content-Type", "application/octet-stream");
             h.setRequestProperty("X-Mtime", String.valueOf(m.modified * 1000));
             try {
-                InputStream in = opener.open(m);
-                if (in == null) return 200; // ya no existe: se salta
+                InputStream in;
                 try {
-                    skipFully(in, offset);
+                    in = opener.open(m);
+                } catch (Exception e) {
+                    return -3; // borrado o sin permiso: no se puede leer
+                }
+                if (in == null) return -3;
+                try {
+                    try {
+                        skipFully(in, offset);
+                    } catch (Exception e) {
+                        return -3;
+                    }
                     Live.fileSent = offset;
                     OutputStream out = h.getOutputStream();
                     byte[] buf = new byte[256 * 1024];
                     int left = len;
                     while (left > 0) {
-                        int n = in.read(buf, 0, Math.min(buf.length, left));
-                        if (n < 0) break;
+                        int n;
+                        try {
+                            n = in.read(buf, 0, Math.min(buf.length, left));
+                        } catch (Exception e) {
+                            return -3;
+                        }
+                        if (n < 0) return -3; // el archivo es mas corto de lo que dice Android
                         out.write(buf, 0, n);
                         left -= n;
                         Live.fileSent += n;
@@ -528,9 +594,10 @@ public class CopiaFotos extends JobService {
                 }
                 if (code != 200) return code;
                 JSONObject o = new JSONObject(read(h.getInputStream()));
-                if (o.optBoolean("skipped")) return -1;
-                if (o.optBoolean("done")) return 200;
+                if (o.optBoolean("skipped")) { RESUME.remove(key); return -1; }
+                if (o.optBoolean("done")) { RESUME.remove(key); return 200; }
                 offset = o.optLong("received", offset + len);
+                RESUME.put(key, offset);
             } catch (java.io.IOException e) {
                 return -2;
             } finally {
@@ -538,6 +605,42 @@ public class CopiaFotos extends JobService {
             }
         }
         return 200;
+    }
+
+    /** Archivos que fallan una y otra vez: se saltan en esta copia para no quedarse atascada. */
+    static final java.util.Map<String, Integer> FAILS = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Hasta donde llego cada archivo a medias, para seguir desde ahi y no desde el principio. */
+    static final java.util.Map<String, Long> RESUME = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String stableUid(String key) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-1").digest(key.getBytes("UTF-8"));
+            StringBuilder s = new StringBuilder("auto-");
+            for (int i = 0; i < 12; i++) s.append(String.format("%02x", d[i]));
+            return s.toString();
+        } catch (Exception e) {
+            return randomUid();
+        }
+    }
+
+    private static String TextUtilsJoin(List<String> l) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < l.size() && i < 5; i++) b.append(i == 0 ? "" : ", ").append(l.get(i));
+        if (l.size() > 5) b.append("…");
+        return b.toString();
+    }
+
+    /** Tamano real del archivo, o -1 si no se puede abrir (borrado, sin permiso). */
+    static long realSize(ContentResolver cr, Media m) {
+        android.os.ParcelFileDescriptor fd = null;
+        try {
+            fd = cr.openFileDescriptor(m.uri, "r");
+            return fd == null ? -1 : Math.max(0, fd.getStatSize());
+        } catch (Exception e) {
+            return -1;
+        } finally {
+            try { if (fd != null) fd.close(); } catch (Exception ignored) { }
+        }
     }
 
     static String rel(Media m) {
@@ -568,7 +671,7 @@ public class CopiaFotos extends JobService {
                 OutputStream o = h.getOutputStream();
                 o.write(body);
                 o.close();
-                if (h.getResponseCode() != 200) break;
+                if (h.getResponseCode() != 200) return null;
                 org.json.JSONArray ex = new JSONObject(read(h.getInputStream())).optJSONArray("exists");
                 if (ex == null) continue;
                 for (int i = 0; i < ex.length(); i++) {
@@ -576,7 +679,7 @@ public class CopiaFotos extends JobService {
                     if (e.optBoolean("same")) out.add(e.optString("rel") + "|" + e.optLong("size"));
                 }
             } catch (Exception e) {
-                break; // sin comprobar: se sube y el servidor salta las que ya tiene
+                return null; // sin conexion con el servidor
             } finally {
                 if (h != null) h.disconnect();
             }
@@ -584,10 +687,21 @@ public class CopiaFotos extends JobService {
         return out;
     }
 
-    /** Cuantas fotos y videos ve la app en el movil, y cuantos faltan: {fotos, videos, faltan}. */
-    static int[] counts(Context c) {
-        int[] r = {count(c, MediaStore.Images.Media.EXTERNAL_CONTENT_URI), count(c, MediaStore.Video.Media.EXTERNAL_CONTENT_URI), 0};
-        r[2] = pending(c).size();
+    /**
+     * Cuantas fotos y videos ve la app en el movil y cuantos faltan en DrivePanel:
+     * {fotos, videos, faltan, bytes que faltan}. faltan = -1 si no se puede preguntar al servidor.
+     */
+    static long[] counts(Context c) {
+        long[] r = {count(c, MediaStore.Images.Media.EXTERNAL_CONTENT_URI), count(c, MediaStore.Video.Media.EXTERNAL_CONTENT_URI), -1, 0};
+        SharedPreferences p = prefs(c);
+        String base = p.getString("server_url", null), cookie = p.getString(K_COOKIE, null);
+        if (base == null || cookie == null) return r;
+        List<Media> phone = pending(c);
+        java.util.Set<String> have = phone.isEmpty() ? new java.util.HashSet<String>()
+                : existing(base, cookie, "DrivePanelAndroid/" + version(c), p.getString(K_FOLDER, Tr.t(DEFAULT_FOLDER)), phone);
+        if (have == null) return r;
+        r[2] = 0;
+        for (Media m : phone) if (!have.contains(rel(m) + "|" + m.size)) { r[2]++; r[3] += m.size; }
         return r;
     }
 

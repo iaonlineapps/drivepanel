@@ -1,5 +1,12 @@
 # What's new in the DrivePanel Android app
 
+## Version 1.6.8
+- New **Photo backup** screen, in the style of Google Photos. At the top a circle shows the status (complete, copying with its %, paused, permission missing...). Below, the summary: photos and videos on the phone, how many are left and their size, and the last backup. Settings use switches.
+- The backup recognises by itself what is already in DrivePanel and continues right where it stopped, even if it was cut halfway. It never uploads anything twice or overwrites a photo.
+- Photos you move to another folder on the phone are uploaded too (to their new album folder).
+- If a file cannot be read (for example a deleted one Android still lists), the backup skips it and carries on. Before, it got stuck on it.
+- “Which photos are copied”: all the ones on the phone or only new ones from today. You can change it any time.
+
 ## Version 1.6.7
 - Automatic photo backup no longer stops on long backups (many gigabytes): it now uploads as an “upload in progress” with its own notification, like Google Photos. It keeps going with the screen off and at night, and retries by itself if the connection drops.
 - New “Don't stop when the screen is off” button: removes battery saving for DrivePanel so Android doesn't slow it down.
