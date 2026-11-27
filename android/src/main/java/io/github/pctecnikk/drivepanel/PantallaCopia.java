@@ -27,6 +27,7 @@ import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -55,7 +56,7 @@ final class PantallaCopia {
     private TextView vPhotos, vVideos, vLeft, vDone, vLast;
     // Ajustes
     private Switch sOn, sWifi, sCamera;
-    private TextView vFolder, vBattery, vBatteryHint, vWhich;
+    private TextView vFolder, vBattery, vBatteryHint, vWhich, vAlbums;
     private View batteryRow, extraBox;
 
     private volatile long[] counts;        // fotos, videos, faltan, bytes que faltan
@@ -321,6 +322,11 @@ final class PantallaCopia {
         x.addView(vBatteryHint);
         divider(x);
 
+        LinearLayout albums = clickRow(x, Tr.t("Carpetas del móvil"));
+        vAlbums = (TextView) albums.getTag();
+        albums.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { chooseAlbums(); } });
+        divider(x);
+
         LinearLayout which = clickRow(x, Tr.t("Qué fotos se copian"));
         vWhich = (TextView) which.getTag();
         which.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { chooseWhich(); } });
@@ -408,6 +414,8 @@ final class PantallaCopia {
         extraBox.setVisibility(on ? View.VISIBLE : View.GONE);
         String f = p.getString(CopiaFotos.K_FOLDER, Tr.t(CopiaFotos.DEFAULT_FOLDER));
         vFolder.setText((f.isEmpty() ? Tr.t("Mi unidad") : f) + "  ›");
+        int offN = CopiaFotos.albumsOff(a).size();
+        vAlbums.setText((offN == 0 ? Tr.t("Todas") : offN == 1 ? Tr.t("Todas menos 1") : Tr.t("Todas menos ") + offN) + "  ›");
         long st = CopiaFotos.start(a);
         vWhich.setText((st <= 0 ? Tr.t("Todas") : Tr.t("Desde el ")
                 + new SimpleDateFormat("d/M/yyyy", new Locale("es", "ES")).format(new Date(st * 1000))) + "  ›");
@@ -432,6 +440,46 @@ final class PantallaCopia {
                 } })
                 .setNegativeButton(Tr.t("Cancelar"), null)
                 .show();
+    }
+
+    /** Lista de carpetas del movil con casillas: las marcadas se suben, como en Google Fotos. */
+    private void chooseAlbums() {
+        a.toast(Tr.t("Mirando las carpetas del móvil…"));
+        new Thread(new Runnable() { @Override public void run() {
+            final List<Object[]> list = CopiaFotos.albums(a);
+            ui.post(new Runnable() { @Override public void run() {
+                if (list.isEmpty()) {
+                    a.toast(Tr.t("No se ven carpetas con fotos (revisa el permiso)"));
+                    return;
+                }
+                final java.util.Set<String> off = CopiaFotos.albumsOff(a);
+                final CharSequence[] names = new CharSequence[list.size()];
+                final boolean[] on = new boolean[list.size()];
+                for (int i = 0; i < list.size(); i++) {
+                    String name = (String) list.get(i)[0];
+                    names[i] = name + "  (" + list.get(i)[1] + ")";
+                    on[i] = !off.contains(name);
+                }
+                new AlertDialog.Builder(a)
+                        .setTitle(Tr.t("Carpetas que se suben"))
+                        .setMultiChoiceItems(names, on, new DialogInterface.OnMultiChoiceClickListener() {
+                            @Override public void onClick(DialogInterface d, int w, boolean checked) { on[w] = checked; }
+                        })
+                        .setPositiveButton(Tr.t("Guardar"), new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) {
+                            java.util.Set<String> now = new java.util.HashSet<>(off);
+                            for (int i = 0; i < list.size(); i++) {
+                                String name = (String) list.get(i)[0];
+                                if (on[i]) now.remove(name); else now.add(name);
+                            }
+                            p.edit().putStringSet(CopiaFotos.K_ALBUMS_OFF, now).apply();
+                            syncSwitches();
+                            countsAt = 0;
+                            a.toast(Tr.t("Guardado"));
+                        } })
+                        .setNegativeButton(Tr.t("Cancelar"), null)
+                        .show();
+            } });
+        } }).start();
     }
 
     private void chooseWhich() {

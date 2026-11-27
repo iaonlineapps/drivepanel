@@ -1,5 +1,8 @@
 # What's new in the DrivePanel Android app
 
+## Version 1.6.9
+- Choose which phone folders are uploaded: in Photo backup → “Phone folders” you see the list of folders (Camera, WhatsApp Images, Screenshots…) with how many photos each one has. Untick the ones you don't want to upload. For example, if you untick Camera, photos are uploaded when you move them to another folder.
+
 ## Version 1.6.8
 - New **Photo backup** screen, in the style of Google Photos. At the top a circle shows the status (complete, copying with its %, paused, permission missing...). Below, the summary: photos and videos on the phone, how many are left and their size, and the last backup. Settings use switches.
 - The backup recognises by itself what is already in DrivePanel and continues right where it stopped, even if it was cut halfway. It never uploads anything twice or overwrites a photo.

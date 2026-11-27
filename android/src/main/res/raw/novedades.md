@@ -2,6 +2,9 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.9
+- Elige qué carpetas del móvil se suben: en Copia de fotos → «Carpetas del móvil» sale la lista de carpetas (Camera, WhatsApp Images, Screenshots…) con cuántas fotos tiene cada una. Quita la marca a las que no quieras subir. Por ejemplo, si quitas Camera, las fotos se suben cuando las mueves a otra carpeta.
+
 ## Versión 1.6.8
 - Pantalla nueva de **Copia de fotos**, al estilo de Google Fotos. Arriba ves un círculo con el estado (completada, copiando con su %, en pausa, falta permiso...). Debajo, el resumen: fotos y vídeos del móvil, cuántos faltan y cuánto ocupan, y la última copia. Los ajustes van con interruptores.
 - La copia reconoce sola lo que ya está en DrivePanel y sigue justo por donde se quedó, aunque se cortara a medias. No vuelve a subir nada ni sobrescribe ninguna foto.
