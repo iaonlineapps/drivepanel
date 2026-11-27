@@ -59,7 +59,7 @@ installable on the phone (from the browser or with the Android APK).
 **Install:**
 
 ```bash
-git clone https://github.com/pctecnikk/drivepanel.git
+git clone https://github.com/iaonlineapps/drivepanel.git
 cd drivepanel
 ./install.sh       # the first time it only creates the .env file
 nano .env          # set DATA_DIR to a folder on your disk, e.g. /mnt/disk/drivepanel
@@ -176,7 +176,7 @@ Explicado en sencillo, para que sepas qué pasa cuando subes algo:
 ## 2. Instalar
 
 ```bash
-git clone https://github.com/pctecnikk/drivepanel.git
+git clone https://github.com/iaonlineapps/drivepanel.git
 cd drivepanel
 ./install.sh       # la primera vez solo crea el archivo .env con tu usuario
 nano .env          # cambia DATA_DIR a la carpeta de tu disco, por ejemplo /mnt/disco/drive-panel
@@ -235,7 +235,7 @@ Después de cambiar algo: `docker compose up -d`.
 Entra por SSH en el servidor y pega esta línea. Sirve desde cualquier carpeta:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/pctecnikk/drivepanel/main/update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/iaonlineapps/drivepanel/main/update.sh | bash
 ```
 
 Busca dónde está instalado DrivePanel, baja el código nuevo, reconstruye, arranca y te dice
@@ -259,7 +259,7 @@ servidor.
 
 **Instalarla en el móvil:**
 
-1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/pctecnikk/drivepanel/releases)**, busca la más nueva
+1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/iaonlineapps/drivepanel/releases)**, busca la más nueva
    que se llama **App Android** y toca **`DrivePanel.apk`**.
 2. Al abrir el archivo, Android pedirá permiso para **instalar apps de origen desconocido**
    (el navegador o la app *Archivos*). Dale permiso y toca **Instalar**.
@@ -452,4 +452,4 @@ la licencia):
 
 Si quieres usarlo con fines comerciales, escribe al autor por GitHub.
 
-Copyright (c) 2026 [pctecnikk](https://github.com/pctecnikk)
+Copyright (c) 2026 [IA Online Apps](https://github.com/iaonlineapps)
