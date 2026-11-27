@@ -5,6 +5,9 @@
      La traducción al inglés está en NOVEDADES.en.md (mismas versiones, mismo orden).
      La app de Android tiene sus propias novedades en android/src/main/res/raw/novedades.md. -->
 
+## 1.0.16
+- **Pie de página nuevo:** en la barra lateral, debajo de la versión, sale ahora «Proyecto sin ánimo de lucro, gratis y sin anuncios · App creada con ayuda de inteligencia artificial (IA) · © 2026 IA Online Apps · Uso personal no comercial».
+
 ## 1.0.15
 - **¿Has olvidado tu usuario o tu contraseña?** Ahora cada cuenta tiene un **código de
   recuperación**. Te lo enseñamos una vez al crear la cuenta (si tu cuenta ya existía, la próxima
