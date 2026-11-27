@@ -2,6 +2,13 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.7
+- La copia automática de fotos ya no se para en copias largas (muchos gigas): ahora sube como «subida en curso», con su aviso fijo, igual que Google Fotos. Sigue con la pantalla apagada y por la noche, y si se corta la conexión reintenta sola.
+- Nuevo botón «Que no se pare con la pantalla apagada»: quita el ahorro de batería a DrivePanel para que Android no la frene.
+- Mientras copia y tienes la app delante, la pantalla no se apaga.
+- La pantalla de la copia dice cuántas fotos y vídeos ve en el móvil y cuántos faltan por copiar. También avisa si falta el permiso de los vídeos.
+- Antes de subir, pregunta a DrivePanel qué tiene ya y lo salta al momento, sin volver a mandarlo.
+
 ## Versión 1.6.6
 - Arreglada la copia automática de fotos cuando entras por tu dominio con https (por ejemplo detrás de Pangolin). Si la dirección guardada era http:// y el servidor la lleva a https://, la app ahora guarda la https y las fotos se vuelven a subir solas. No tienes que hacer nada: abre la app una vez y listo.
 - Copia de fotos más clara: si la app no tiene permiso para ver tus fotos (o solo para algunas), ahora te lo dice en vez de poner «Todo copiado», y «Copiar ahora» te pide el permiso. Si pusiste «Solo las nuevas», el estado dice desde qué día copia, y hay un botón «Copiar también las que ya tenía». El estado se actualiza en directo al pulsar «Copiar ahora».
