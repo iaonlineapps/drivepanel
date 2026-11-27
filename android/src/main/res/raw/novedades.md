@@ -2,6 +2,13 @@
 
 <!-- La versión más nueva va arriba. Numeración de poco en poco: 1.6.1, 1.6.2, 1.6.3... (la etiqueta en GitHub es android-v1.6.1). -->
 
+## Versión 1.6.8
+- Pantalla nueva de **Copia de fotos**, al estilo de Google Fotos. Arriba ves un círculo con el estado (completada, copiando con su %, en pausa, falta permiso...). Debajo, el resumen: fotos y vídeos del móvil, cuántos faltan y cuánto ocupan, y la última copia. Los ajustes van con interruptores.
+- La copia reconoce sola lo que ya está en DrivePanel y sigue justo por donde se quedó, aunque se cortara a medias. No vuelve a subir nada ni sobrescribe ninguna foto.
+- Las fotos que mueves de carpeta en el móvil también se suben (a la carpeta de su nuevo álbum).
+- Si un archivo no se puede leer (por ejemplo uno borrado que Android aún tiene en la lista), la copia se lo salta y sigue con los demás. Antes se quedaba atascada en él.
+- «Qué fotos se copian»: todas las del móvil o solo las nuevas desde hoy. Se puede cambiar cuando quieras.
+
 ## Versión 1.6.7
 - La copia automática de fotos ya no se para en copias largas (muchos gigas): ahora sube como «subida en curso», con su aviso fijo, igual que Google Fotos. Sigue con la pantalla apagada y por la noche, y si se corta la conexión reintenta sola.
 - Nuevo botón «Que no se pare con la pantalla apagada»: quita el ahorro de batería a DrivePanel para que Android no la frene.

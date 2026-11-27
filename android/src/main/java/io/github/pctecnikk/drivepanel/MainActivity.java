@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     private static final int REQ_FILES = 1;
     private static final int REQ_STORAGE = 2;
     private static final int REQ_FOLDER = 3;
-    private static final int REQ_MEDIA = 4;
+    static final int REQ_MEDIA = 4;
     private static final int REQ_NOTIF = 5;
     private static final int BLUE = 0xFF1A73E8;
 
@@ -243,16 +243,18 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------------ Pantalla del servidor
 
-    private int dp(int v) {
+    int dp(int v) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
     }
 
     private void showSetup(String current, String message) {
         if (web != null) {
-            root.removeAllViews();
+            if (copia != null) { copia.stop(); copia = null; }
+        root.removeAllViews();
             web.destroy();
             web = null;
         }
+        if (copia != null) { copia.stop(); copia = null; }
         root.removeAllViews();
 
         ScrollView scroll = new ScrollView(this);
@@ -511,6 +513,7 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------------ La web
 
     private void showWeb(final String base, Bundle state) {
+        if (copia != null) { copia.stop(); copia = null; }
         root.removeAllViews();
         errorShown = false;
         web = new WebView(this);
@@ -967,7 +970,7 @@ public class MainActivity extends Activity {
         requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, REQ_NOTIF);
     }
 
-    private String[] mediaPermissions() {
+    String[] mediaPermissions() {
         if (Build.VERSION.SDK_INT >= 34) {
             return new String[]{"android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO",
                     "android.permission.READ_MEDIA_VISUAL_USER_SELECTED", "android.permission.POST_NOTIFICATIONS"};
@@ -987,236 +990,27 @@ public class MainActivity extends Activity {
                 && checkSelfPermission("android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void showCopia() {
-        final boolean on = prefs.getBoolean(CopiaFotos.K_ON, false);
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(22), dp(6), dp(22), 0);
+    private PantallaCopia copia;
 
-        TextView info = new TextView(this);
-        info.setText(Tr.t("Como Google Fotos: DrivePanel sube solo las fotos y vídeos nuevos del móvil a una carpeta ")
-                + Tr.t("de tu servidor, con una subcarpeta por álbum (Camera, WhatsApp Images…). Lo que ya esté subido no se repite."));
-        info.setTextSize(14);
-        box.addView(info);
-
-        final android.widget.CheckBox wifi = new android.widget.CheckBox(this);
-        wifi.setText(Tr.t("Solo con wifi (no gasta datos)"));
-        wifi.setChecked(prefs.getBoolean(CopiaFotos.K_WIFI, true));
-        box.addView(wifi);
-
-        final android.widget.CheckBox camera = new android.widget.CheckBox(this);
-        camera.setText(Tr.t("Solo fotos y vídeos de la cámara (sin WhatsApp ni capturas)"));
-        camera.setChecked(prefs.getBoolean(CopiaFotos.K_CAMERA, true));
-        box.addView(camera);
-
-        TextView fl = new TextView(this);
-        fl.setText(Tr.t("\nCarpeta de DrivePanel (se crea si no existe):"));
-        fl.setTextSize(14);
-        box.addView(fl);
-        final EditText folder = new EditText(this);
-        folder.setSingleLine(true);
-        folder.setText(prefs.getString(CopiaFotos.K_FOLDER, Tr.t(CopiaFotos.DEFAULT_FOLDER)));
-        box.addView(folder);
-
-        // Progreso en directo (como las subidas y descargas): %, archivo, grafica, velocidad y tiempo
-        final boolean dark = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        final LinearLayout live = new LinearLayout(this);
-        live.setOrientation(LinearLayout.VERTICAL);
-        live.setPadding(0, dp(14), 0, 0);
-        final TextView lHead = new TextView(this);
-        lHead.setTextSize(16);
-        lHead.setTypeface(Typeface.DEFAULT_BOLD);
-        live.addView(lHead);
-        final TextView lName = new TextView(this);
-        lName.setTextSize(13);
-        lName.setSingleLine(true);
-        lName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
-        lName.setTextColor(0xFF5F6368);
-        live.addView(lName);
-        final ProgressBar lBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        lBar.setMax(1000);
-        live.addView(lBar);
-        final GraficaVelocidad lGraph = new GraficaVelocidad(this, dark);
-        live.addView(lGraph, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(80)));
-        final TextView lStats = new TextView(this);
-        lStats.setTextSize(13);
-        lStats.setPadding(0, dp(4), 0, 0);
-        live.addView(lStats);
-        final LinearLayout lButtons = new LinearLayout(this);
-        lButtons.setOrientation(LinearLayout.HORIZONTAL);
-        Button lPause = new Button(this);
-        lPause.setText(Tr.t("Pausar"));
-        lPause.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
-            CopiaFotos.pause(MainActivity.this);
-            toast(Tr.t("Copia en pausa"));
-        } });
-        Button lCancel = new Button(this);
-        lCancel.setText(Tr.t("Cancelar"));
-        lCancel.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
-            new AlertDialog.Builder(MainActivity.this)
-                    .setTitle(Tr.t("¿Cancelar la copia?"))
-                    .setMessage(Tr.t("Las fotos y vídeos que faltan no se copiarán. Las fotos nuevas que hagas a partir de ahora sí se seguirán copiando solas."))
-                    .setPositiveButton(Tr.t("Cancelar copia"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
-                        CopiaFotos.cancel(MainActivity.this);
-                        toast(Tr.t("Copia cancelada"));
-                    } })
-                    .setNegativeButton(Tr.t("Seguir copiando"), null)
-                    .show();
-        } });
-        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        lButtons.addView(lPause, half);
-        lButtons.addView(lCancel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        live.addView(lButtons);
-        box.addView(live);
-
-        final TextView st = new TextView(this);
-        String status = prefs.getString(CopiaFotos.K_STATUS, null);
-        long total = prefs.getLong(CopiaFotos.K_TOTAL, 0);
-        st.setText(on ? Tr.t("\nEstado: ") + (status != null ? status : Tr.t("esperando")) + Tr.t("\nCopiadas hasta ahora: ") + total
-                : Tr.t("\nAhora está desactivada."));
-        st.append(Tr.t("\nVersión de la app: ") + Novedades.version(this) + " (" + versionCode() + ")");
-        st.setTextSize(13);
-        st.setTextColor(0xFF5F6368);
-        box.addView(st);
-
-        // Lo que la app ve en el movil: asi se nota si faltan los videos o algun permiso
-        final TextView seenTv = new TextView(this);
-        seenTv.setTextSize(13);
-        seenTv.setTextColor(0xFF5F6368);
-        if (on) {
-            box.addView(seenTv);
-            new Thread(new Runnable() { @Override public void run() {
-                final int[] n = CopiaFotos.counts(MainActivity.this);
-                runOnUiThread(new Runnable() { @Override public void run() {
-                    seenTv.setText(Tr.t("En el móvil: ") + n[0] + Tr.t(" fotos y ") + n[1] + Tr.t(" vídeos · faltan por copiar: ") + n[2]);
-                } });
-            } }).start();
+    /** Pantalla "Copia de fotos" (a pantalla completa, como la copia de seguridad de Google Fotos). */
+    void showCopia() {
+        if (copia != null) {
+            copia.refresh();
+            return;
         }
+        copia = new PantallaCopia(this, prefs);
+        root.addView(copia.view(), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
 
-        // Sin el ahorro de bateria, Android deja que la copia siga de noche y con la pantalla apagada
-        if (on && !batteryFree()) {
-            Button bat = new Button(this);
-            bat.setText(Tr.t("Que no se pare con la pantalla apagada"));
-            bat.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { askBattery(); } });
-            box.addView(bat);
-        }
-
-        AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(Tr.t("Copia automática de fotos"))
-                .setView(box)
-                .setNegativeButton(Tr.t("Cerrar"), null);
-        if (on) {
-            b.setPositiveButton(Tr.t("Guardar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
-                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
-                CopiaFotos.schedule(MainActivity.this);
-                toast(Tr.t("Guardado"));
-            } });
-            b.setNeutralButton(Tr.t("Desactivar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
-                prefs.edit().putBoolean(CopiaFotos.K_ON, false).apply();
-                CopiaFotos.cancelAll(MainActivity.this);
-                toast(Tr.t("Copia automática desactivada"));
-            } });
-        } else {
-            b.setPositiveButton(Tr.t("Activar"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
-                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
-                askWhichPhotos();
-            } });
-        }
-        final AlertDialog dlg = b.show();
-        final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
-        final int[] seen = {-1};
-        final boolean[] wasRunning = {false};
-        final Button[] nowRef = {null};
-        ui.post(new Runnable() { @Override public void run() {
-            if (!dlg.isShowing()) return;
-            boolean running = CopiaFotos.Live.running;
-            // Con la copia activada se ve siempre; los detalles, solo mientras copia
-            live.setVisibility(prefs.getBoolean(CopiaFotos.K_ON, false) ? View.VISIBLE : View.GONE);
-            int det = running ? View.VISIBLE : View.GONE;
-            lName.setVisibility(det);
-            lBar.setVisibility(det);
-            lGraph.setVisibility(det);
-            lStats.setVisibility(det);
-            lButtons.setVisibility(det);
-            if (!running) lHead.setText(CopiaFotos.paused(MainActivity.this) ? Tr.t("En pausa") : Tr.t("Ahora mismo no está copiando"));
-            if (running) {
-                long sent = CopiaFotos.Live.sent(), total = CopiaFotos.Live.totalBytes;
-                float frac = total <= 0 ? 0 : (float) sent / total;
-                lHead.setText(Tr.t("Copiando ") + CopiaFotos.Live.index + Tr.t(" de ") + CopiaFotos.Live.count + " · " + CopiaFotos.Live.percent() + " %");
-                lName.setText(CopiaFotos.Live.name);
-                lBar.setProgress((int) (frac * 1000));
-                lStats.setText(CopiaFotos.stats());
-                int seq = CopiaFotos.Live.seq;
-                if (seen[0] < 0 || seq < seen[0] || seq - seen[0] > 1) {
-                    lGraph.reset();
-                    for (double v : CopiaFotos.Live.history()) lGraph.add(v, frac);
-                } else if (seq > seen[0]) {
-                    double[] h = CopiaFotos.Live.history();
-                    if (h.length > 0) lGraph.add(h[h.length - 1], frac);
-                }
-                seen[0] = seq;
-            } else if (prefs.getBoolean(CopiaFotos.K_ON, false)) {
-                String s2 = prefs.getString(CopiaFotos.K_STATUS, null);
-                st.setText(Tr.t("\nEstado: ") + (s2 != null ? s2 : Tr.t("esperando")) + Tr.t("\nCopiadas hasta ahora: ") + prefs.getLong(CopiaFotos.K_TOTAL, 0)
-                        + Tr.t("\nVersión de la app: ") + Novedades.version(MainActivity.this) + " (" + versionCode() + ")");
-            }
-            if (nowRef[0] != null) nowRef[0].setText(CopiaFotos.paused(MainActivity.this) ? Tr.t("Reanudar copia") : Tr.t("Copiar ahora"));
-            wasRunning[0] = running;
-            ui.postDelayed(this, 1000);
-        } });
-        if (on) {
-            // "Copiar ahora" sin cerrar el dialogo de un toque accidental
-            final Button now = new Button(this);
-            nowRef[0] = now;
-            now.setText(CopiaFotos.paused(this) ? Tr.t("Reanudar copia") : Tr.t("Copiar ahora"));
-            now.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
-                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
-                if (CopiaFotos.access(MainActivity.this) < 2) {
-                    // Sin permiso (o solo para algunas fotos): se pide; al aceptarlo empieza a copiar
-                    CopiaFotos.setStatus(MainActivity.this, Tr.t("Esperando el permiso para ver tus fotos…"));
-                    requestPermissions(mediaPermissions(), REQ_MEDIA);
-                    dlg.dismiss();
-                    return;
-                }
-                if (CopiaFotos.paused(MainActivity.this)) CopiaFotos.resume(MainActivity.this);
-                else CopiaFotos.runNow(MainActivity.this);
-                toast(Tr.t("Copiando…"));
-                if (!batteryFree() && !prefs.getBoolean("battery_asked", false)) {
-                    prefs.edit().putBoolean("battery_asked", true).apply();
-                    dlg.dismiss();
-                    askBattery();
-                }
-            } });
-            box.addView(now);
-
-            // Si se eligio "solo las nuevas", poder copiar tambien las que ya habia en el movil
-            if (prefs.getLong(CopiaFotos.K_SINCE, 0) > 0) {
-                final Button old = new Button(this);
-                old.setText(Tr.t("Copiar también las que ya tenía"));
-                old.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
-                    new AlertDialog.Builder(MainActivity.this)
-                            .setTitle(Tr.t("¿Copiar también las fotos antiguas?"))
-                            .setMessage(Tr.t("Se subirán todas las fotos y vídeos que ya tienes en el móvil. Las que ya estén en DrivePanel no se repiten. Puede tardar bastante la primera vez."))
-                            .setPositiveButton(Tr.t("Copiar todas"), new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int w) {
-                                saveCopia(wifi.isChecked(), camera.isChecked(), folder.getText().toString());
-                                prefs.edit().putLong(CopiaFotos.K_SINCE, 0).putLong(CopiaFotos.K_SINCE_ID, -1)
-                                        .putBoolean(CopiaFotos.K_PAUSED, false).apply();
-                                old.setVisibility(View.GONE);
-                                if (CopiaFotos.access(MainActivity.this) < 2) requestPermissions(mediaPermissions(), REQ_MEDIA);
-                                else CopiaFotos.runNow(MainActivity.this);
-                                toast(Tr.t("Copiando…"));
-                            } })
-                            .setNegativeButton(Tr.t("Cancelar"), null)
-                            .show();
-                } });
-                box.addView(old);
-            }
-        }
+    void closeCopia() {
+        if (copia == null) return;
+        copia.stop();
+        root.removeView(copia.view());
+        copia = null;
     }
 
     /** true si DrivePanel ya no tiene el ahorro de bateria (Android no la duerme). */
-    private boolean batteryFree() {
+    boolean batteryFree() {
         if (Build.VERSION.SDK_INT < 23) return true;
         try {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
@@ -1226,7 +1020,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void askBattery() {
+    void askBattery() {
         new AlertDialog.Builder(this)
                 .setTitle(Tr.t("Que la copia no se pare"))
                 .setMessage(Tr.t("Para subir muchos gigas, Android tiene que dejar a DrivePanel seguir con la pantalla apagada y por la noche. En la siguiente ventana pulsa «Permitir».\n\nEn Xiaomi, Huawei u OnePlus quizá tengas que poner también «Sin restricciones» en Ajustes → Aplicaciones → DrivePanel → Batería."))
@@ -1246,11 +1040,11 @@ public class MainActivity extends Activity {
     }
 
     @SuppressWarnings("deprecation")
-    private int versionCode() {
+    int versionCode() {
         try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode; } catch (Exception e) { return 0; }
     }
 
-    private void saveCopia(boolean wifi, boolean camera, String folder) {
+    void saveCopia(boolean wifi, boolean camera, String folder) {
         String f = folder.trim().replace('\\', '/');
         while (f.startsWith("/")) f = f.substring(1);
         while (f.endsWith("/")) f = f.substring(0, f.length() - 1);
@@ -1258,18 +1052,19 @@ public class MainActivity extends Activity {
                 .putString(CopiaFotos.K_FOLDER, f).apply();
     }
 
-    private void askWhichPhotos() {
+    void askWhichPhotos() {
         new AlertDialog.Builder(this)
                 .setTitle(Tr.t("¿Qué fotos copio?"))
                 .setItems(new CharSequence[]{Tr.t("Solo las nuevas, desde ahora"), Tr.t("También todas las que ya tengo en el móvil")},
                         new android.content.DialogInterface.OnClickListener() { @Override public void onClick(android.content.DialogInterface d, int which) {
                             long since = which == 0 ? System.currentTimeMillis() / 1000 : 0;
-                            prefs.edit().putLong(CopiaFotos.K_SINCE, since).putLong(CopiaFotos.K_SINCE_ID, -1).apply();
+                            prefs.edit().putLong(CopiaFotos.K_START, since).apply();
                             if (hasMediaPermission()) {
                                 prefs.edit().putBoolean(CopiaFotos.K_ON, true).apply();
                                 CopiaFotos.schedule(MainActivity.this);
                                 CopiaFotos.runNow(MainActivity.this);
                                 toast(Tr.t("Copia automática activada"));
+                                if (copia != null) copia.refresh();
                                 if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, REQ_STORAGE + 10);
                             } else {
                                 requestPermissions(mediaPermissions(), REQ_MEDIA);
@@ -1294,6 +1089,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (copia != null) {
+            closeCopia();
+            return;
+        }
         if (fullView != null) {
             exitFullscreen();
             return;
@@ -1365,7 +1164,7 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    private void toast(String msg) {
+    void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
     }
 }
