@@ -45,7 +45,7 @@ public class CopiaFotos extends JobService {
 
     static final String K_ON = "auto_on", K_WIFI = "auto_wifi", K_FOLDER = "auto_folder", K_CAMERA = "auto_camera",
             K_SINCE = "auto_since", K_SINCE_ID = "auto_since_id", K_STATUS = "auto_status", K_LAST = "auto_last",
-            K_COOKIE = "auto_cookie", K_TOTAL = "auto_total", K_PAUSED = "auto_paused", K_START = "auto_start";
+            K_COOKIE = "auto_cookie", K_TOTAL = "auto_total", K_PAUSED = "auto_paused", K_START = "auto_start", K_ALBUMS_OFF = "auto_albums_off";
     static final String DEFAULT_FOLDER = "Fotos del móvil";
     private static final int JOB_PERIODIC = 41, JOB_TRIGGER = 42, JOB_NOW = 43;
     private static final String CHANNEL = "copia";
@@ -228,11 +228,46 @@ public class CopiaFotos extends JobService {
         List<Media> out = new ArrayList<>();
         query(c.getContentResolver(), MediaStore.Images.Media.EXTERNAL_CONTENT_URI, since, sinceId, camera, out);
         query(c.getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI, since, sinceId, camera, out);
+        // Carpetas del movil que la persona ha quitado de la copia
+        java.util.Set<String> off = albumsOff(c);
+        if (!off.isEmpty()) {
+            for (java.util.Iterator<Media> it = out.iterator(); it.hasNext(); ) if (off.contains(it.next().album)) it.remove();
+        }
         Collections.sort(out, new Comparator<Media>() {
             @Override public int compare(Media a, Media b) {
                 if (a.added != b.added) return a.added < b.added ? -1 : 1;
                 return Long.compare(a.id, b.id);
             }
+        });
+        return out;
+    }
+
+    static java.util.Set<String> albumsOff(Context c) {
+        return new java.util.HashSet<>(prefs(c).getStringSet(K_ALBUMS_OFF, new java.util.HashSet<String>()));
+    }
+
+    /** Carpetas (albumes) del movil con fotos o videos, y cuantos tiene cada una, de mas a menos. */
+    static List<Object[]> albums(Context c) {
+        java.util.Map<String, Integer> n = new java.util.HashMap<>();
+        for (Uri u : new Uri[]{MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Video.Media.EXTERNAL_CONTENT_URI}) {
+            Cursor cur = null;
+            try {
+                cur = c.getContentResolver().query(u, new String[]{"bucket_display_name"}, null, null, null);
+                while (cur != null && cur.moveToNext()) {
+                    String a = cur.getString(0);
+                    if (a == null || a.trim().isEmpty()) a = "Otras";
+                    Integer k = n.get(a);
+                    n.put(a, k == null ? 1 : k + 1);
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (cur != null) cur.close();
+            }
+        }
+        List<Object[]> out = new ArrayList<>();
+        for (java.util.Map.Entry<String, Integer> e : n.entrySet()) out.add(new Object[]{e.getKey(), e.getValue()});
+        Collections.sort(out, new Comparator<Object[]>() {
+            @Override public int compare(Object[] a, Object[] b) { return ((Integer) b[1]) - ((Integer) a[1]); }
         });
         return out;
     }

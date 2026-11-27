@@ -256,6 +256,12 @@ final class Tr {
         e("Para subir muchos gigas, Android tiene que dejar a DrivePanel seguir con la pantalla apagada y por la noche. En la siguiente ventana pulsa «Permitir».\n\nEn Xiaomi, Huawei u OnePlus quizá tengas que poner también «Sin restricciones» en Ajustes → Aplicaciones → DrivePanel → Batería.", "To upload many gigabytes, Android must let DrivePanel keep going with the screen off and at night. In the next window tap “Allow”.\n\nOn Xiaomi, Huawei or OnePlus you may also need to set “Unrestricted” in Settings → Apps → DrivePanel → Battery.");
         e("Continuar", "Continue");
         e("Ahora no", "Not now");
+        e("Carpetas del móvil", "Phone folders");
+        e("Todas menos 1", "All but 1");
+        e("Todas menos ", "All but ");
+        e("Mirando las carpetas del móvil…", "Looking at the phone folders…");
+        e("No se ven carpetas con fotos (revisa el permiso)", "No folders with photos found (check the permission)");
+        e("Carpetas que se suben", "Folders to upload");
         e("DrivePanel no tiene espacio (disco o cuota llenos); la copia está parada", "DrivePanel has no space (disk or quota full); the backup has stopped");
         e("No queda espacio en DrivePanel.", "There is no space left in DrivePanel.");
         e("Copia terminada · ", "Backup finished · ");
