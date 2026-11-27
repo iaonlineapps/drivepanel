@@ -38,6 +38,8 @@ class Limiter:
 by_ip_user = Limiter(5, 900, 900)
 # 30 fallos con el mismo usuario desde cualquier sitio: 15 minutos (por si cambian de IP).
 by_user = Limiter(30, 900, 900)
+# Codigo de recuperacion: 5 fallos desde la misma IP en 15 minutos -> 30 minutos de espera.
+recover = Limiter(5, 900, 1800)
 # Registro: como mucho 5 cuentas nuevas por IP y hora.
 register = Limiter(5, 3600, 3600)
 

@@ -545,3 +545,7 @@ table.list{width:100%;border-collapse:collapse}
 .dialog .news li{margin:5px 0}
 .dialog .news li code{display:inline;padding:1px 5px;margin:0;font-size:12px}
 .news-tag{font-size:11px;font-weight:500;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:0 8px;vertical-align:2px}
+
+/* código de recuperación: grande, fácil de leer y de copiar a mano */
+.rec-code{font:600 clamp(20px,6vw,28px)/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;text-align:center;padding:16px 10px;margin:14px 0 4px;border:2px dashed var(--accent);border-radius:14px;background:var(--bg);user-select:all;word-break:break-all}
+.rec-code-box h3{display:flex;align-items:center;gap:8px}
