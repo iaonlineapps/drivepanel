@@ -150,17 +150,95 @@ $('#authForm').onsubmit = async e => {
     if (registering) {
       if (password !== $('#authPass2').value) throw new Error(t('Las contraseñas no coinciden'));
       const r = await api('/api/register', {json: {username, password}});
+      if (r.recovery_code) await recoveryCodeDialog(r.recovery_code);
       m.className = 'auth-msg ok'; m.textContent = r.msg;
       if (r.admin) { $('#authSwitch').click(); m.className = 'auth-msg ok'; m.textContent = r.msg; }
       return;
     }
     const adding = !$('#authCancel').classList.contains('hidden');
-    await api('/api/login', {json: {username, password}});
+    const r = await api('/api/login', {json: {username, password}});
     $('#authPass').value = '';
+    if (r.recovery_code) await recoveryCodeDialog(r.recovery_code);
     if (adding) { location.hash = '#/drive'; location.reload(); return; }
     start();
   } catch (err) { m.textContent = err.message; }
 };
+
+/* ---------- código de recuperación ----------
+   Cada cuenta tiene un código que se enseña una sola vez (al crearla, o al entrar la primera
+   vez si la cuenta es de antes). Con él se ve el usuario y se pone una contraseña nueva,
+   aunque se hayan olvidado los dos. No hace falta correo. */
+function recoveryCodeDialog(code, user, other = false) {
+  const p = dialog(`<div class="rec-code-box"><h3>${ic('key')} ${other ? t('Código de recuperación de {user}', {user: esc(user)}) : t('Tu código de recuperación')}</h3>
+    ${user && !other ? `<p>${t('Tu usuario es')} <b>${esc(user)}</b></p>` : ''}
+    <p>${other ? t('Pásaselo junto con su contraseña. Con este código podrá entrar si olvida su usuario o su contraseña. Solo se enseña ahora.') :
+      t('Si algún día olvidas tu usuario o tu contraseña, con este código podrás entrar otra vez. Apúntalo o hazle una foto y guárdalo en un sitio seguro: solo se enseña ahora.')}</p>
+    <div class="rec-code">${esc(code)}</div>
+    <p class="muted">${t('Guárdalo donde quieras: cópialo, mándatelo por WhatsApp o Telegram (a ti mismo o a «Mensajes guardados») o bájalo como archivo.')}</p>
+    <div class="send-row">
+      <button type="button" class="btn small" id="recCopy">${ic('link')} ${t('Copiar')}</button>
+      <button type="button" class="btn small send-wa" id="recWa">${ic('chat')} WhatsApp</button>
+      <button type="button" class="btn small send-tg" id="recTg">${ic('send')} Telegram</button>
+      <button type="button" class="btn small" id="recMail">${ic('send')} ${t('Correo')}</button>
+      ${window.DPAndroid ? '' : `<button type="button" class="btn small" id="recFile">${ic('download')} ${t('Bajar archivo')}</button>`}
+      ${navigator.share ? `<button type="button" class="btn small" id="recMore">${ic('share')} ${t('Otras apps')}</button>` : ''}
+    </div>
+    <div class="actions"><button class="btn primary" data-close>${t('Ya lo he guardado')}</button></div></div>`);
+  // el texto lleva la dirección de DrivePanel y el usuario, para saber de qué es el código
+  const text = t('Código de recuperación de DrivePanel') + (user ? ' (' + t('usuario') + ' ' + user + ')' : '') + ': ' + code +
+    '\n' + location.origin + '\n' + t('Sirve para entrar si olvidas el usuario o la contraseña: «¿Has olvidado tu usuario o contraseña?».');
+  const open = u => window.open(u, '_blank', 'noopener');
+  $('#recCopy').onclick = () => copy(text);
+  $('#recWa').onclick = () => open('https://wa.me/?text=' + encodeURIComponent(text));
+  $('#recTg').onclick = () => open('https://t.me/share/url?url=' + encodeURIComponent(location.origin) + '&text=' + encodeURIComponent(text.replace('\n' + location.origin, '')));
+  $('#recMail').onclick = () => { location.href = 'mailto:?subject=' + encodeURIComponent(t('Código de recuperación de DrivePanel')) + '&body=' + encodeURIComponent(text); };
+  if ($('#recFile')) $('#recFile').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text.replace(/\n/g, '\r\n') + '\r\n'], {type: 'text/plain'}));
+    a.download = 'DrivePanel-' + t('codigo-recuperacion') + (user ? '-' + user : '') + '.txt';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  const m = $('#recMore'); if (m) m.onclick = () => navigator.share({title: t('Código de recuperación de DrivePanel'), text}).catch(() => {});
+  return p;
+}
+function forgotDialog() {
+  const p = dialog(`<h3>${t('Recuperar mi cuenta')}</h3><form id="fgf">
+    <p>${t('Escribe tu código de recuperación (te lo enseñamos al crear la cuenta) y elige una contraseña nueva. Si no tienes el código, pide al administrador que te ponga una contraseña nueva.')}</p>
+    <label>${t('Código de recuperación')}</label><input id="fgCode" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+    <label>${t('Usuario (si no lo recuerdas, déjalo vacío)')}</label><input id="fgUser" autocomplete="username" autocapitalize="none">
+    <label>${t('Contraseña nueva')}</label><input id="fgP1" type="password" autocomplete="new-password" required>
+    <label>${t('Repite la contraseña nueva')}</label><input id="fgP2" type="password" autocomplete="new-password" required>
+    <div id="fgMsg" class="auth-msg"></div>
+    <div class="actions"><button type="button" class="btn" data-close>${t('Cancelar')}</button><button class="btn primary">${t('Recuperar')}</button></div></form>`);
+  $('#fgf').onsubmit = async e => {
+    e.preventDefault(); const m = $('#fgMsg'); m.textContent = '';
+    if ($('#fgP1').value !== $('#fgP2').value) { m.textContent = t('Las contraseñas no coinciden'); return; }
+    let r; try { r = await api('/api/recover', {json: {code: $('#fgCode').value, username: $('#fgUser').value.trim(), password: $('#fgP1').value}}); }
+    catch (err) { m.textContent = err.message; return; }
+    closeDialog();
+    await recoveryCodeDialog(r.recovery_code, r.username);
+    $('#authUser').value = r.username; $('#authPass').value = '';
+    const am = $('#authMsg');
+    am.className = 'auth-msg' + (r.status === 'approved' ? ' ok' : '');
+    am.textContent = r.status === 'approved' ? t('Contraseña cambiada. Ya puedes entrar con la nueva.') :
+      r.status === 'pending' ? t('Contraseña cambiada, pero tu cuenta aún está pendiente de aprobación') : t('Contraseña cambiada, pero tu cuenta está bloqueada');
+    $('#authPass').focus();
+  };
+  return p;
+}
+$('#authForgot').onclick = e => { e.preventDefault(); forgotDialog(); };
+async function newRecoveryDialog() {
+  const p = dialog(`<h3>${t('Código de recuperación')}</h3><form id="rcf">
+    <p>${t('Te damos un código nuevo y el anterior deja de valer. Sirve para entrar si olvidas tu usuario o tu contraseña.')}</p>
+    <label>${t('Tu contraseña actual')}</label><input id="rcPw" type="password" autocomplete="current-password" required>
+    <div class="actions"><button type="button" class="btn" data-close>${t('Cancelar')}</button><button class="btn primary">${t('Crear código nuevo')}</button></div></form>`);
+  $('#rcf').onsubmit = async e => {
+    e.preventDefault();
+    let r; try { r = await api('/api/recovery', {json: {password: $('#rcPw').value}}); } catch (err) { return toast(err.message); }
+    closeDialog(); recoveryCodeDialog(r.recovery_code, S.me.username);
+  };
+  return p;
+}
 
 async function start() {
   try { S.me = await api('/api/me'); } catch (e) { showAuth(); return; }
@@ -604,7 +682,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   // con un documento abierto, las teclas son del editor (Supr no debe borrar archivos)
-  if (window.OFFICE && OFFICE.isOpen()) { if (!$('#dialog').classList.contains('hidden') && e.key === 'Escape') closeDialog(); return; }
+  if (window.OFFICE && OFFICE.isOpen()) { if (!$('#dialog').classList.contains('hidden') && e.key === 'Escape' && !dlgSticky()) closeDialog(); return; }
   if (!$('#viewer').classList.contains('hidden')) {
     const m = viewerMedia();
     if (e.key === 'Escape') return closeViewer();
@@ -613,7 +691,7 @@ document.addEventListener('keydown', e => {
     if (m && e.key === ' ' && e.target === document.body) { e.preventDefault(); m.paused ? m.play() : m.pause(); return; }
     if (e.key === 'ArrowLeft') stepViewer(-1); if (e.key === 'ArrowRight') stepViewer(1); return;
   }
-  if (!$('#dialog').classList.contains('hidden')) { if (e.key === 'Escape') closeDialog(); return; }
+  if (!$('#dialog').classList.contains('hidden')) { if (e.key === 'Escape' && !dlgSticky()) closeDialog(); return; }
   if (e.target.matches('input')) return;
   if (e.key === 'Delete' && S.sel.size && S.view !== 'trash') actions.delete();
   if (e.key === 'Escape') { S.sel.clear(); updateSel(); $('#ctx').classList.add('hidden'); }
@@ -625,7 +703,9 @@ document.addEventListener('keydown', e => {
 let dlgResolve;
 function dialog(html) { $('#dialogBox').innerHTML = html; $('#dialog').classList.remove('hidden'); paintIcons($('#dialogBox')); const f = $('#dialogBox input'); f && setTimeout(() => { f.focus(); f.select?.(); }, 30); return new Promise(r => dlgResolve = r); }
 function closeDialog(v) { $('#dialog').classList.add('hidden'); dlgResolve?.(v); dlgResolve = null; }
-$('#dialog').addEventListener('mousedown', e => { if (e.target === $('#dialog')) closeDialog(); });
+// la ventana del código de recuperación solo se cierra con su botón (que no se pierda sin verlo)
+const dlgSticky = () => !!$('#dialogBox .rec-code');
+$('#dialog').addEventListener('mousedown', e => { if (e.target === $('#dialog') && !dlgSticky()) closeDialog(); });
 $('#dialogBox').addEventListener('click', e => { const b = e.target.closest('[data-close]'); if (b) closeDialog(b.dataset.close === 'ok' ? true : undefined); });
 async function promptDialog(title, value = '', ok = t('Aceptar')) {
   const p = dialog(`<h3>${esc(title)}</h3><form id="pf"><input id="pv" value="${esc(value)}"><div class="actions"><button type="button" class="btn" data-close>${t('Cancelar')}</button><button class="btn primary">${ok}</button></div></form>`);
@@ -1146,9 +1226,11 @@ async function addUserDialog() {
   $('#nuf').onsubmit = async e => {
     e.preventDefault();
     try {
-      await api('/api/admin/users', {json: {username: $('#nuName').value.trim(), password: $('#nuPass').value,
+      const name = $('#nuName').value.trim();
+      const r = await api('/api/admin/users', {json: {username: name, password: $('#nuPass').value,
         quota_gb: parseFloat($('#nuQuota').value.replace(',', '.')) || 0, is_admin: $('#nuAdmin').checked}});
       toast(t('Usuario creado')); closeDialog(); renderUsers();
+      if (r.recovery_code) recoveryCodeDialog(r.recovery_code, name, true);
     } catch (err) { toast(err.message); }
   };
   return p;
@@ -1215,7 +1297,7 @@ $('#userMenu').onclick = async e => {
   if (a === 'logout') { await api('/api/logout', {method: 'POST'}); S.me = null; showAuth(); }
   if (a === 'logoutAll') { await api('/api/logout', {json: {all: true}}); S.me = null; showAuth(); }
   if (a === 'addAccount') showAuth(true);
-  if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'home') homeDialog();
+  if (a === 'webdav') webdavDialog(); if (a === 'password') passwordDialog(); if (a === 'recovery') newRecoveryDialog(); if (a === 'home') homeDialog();
   if (a === 'settings') go('settings');
   if (a === 'news') showNews().catch(() => {});
   if (a === 'avatar') $('#avatarInput').click();

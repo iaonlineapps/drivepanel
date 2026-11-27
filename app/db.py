@@ -1,4 +1,4 @@
-import hashlib, hmac, os, secrets, sqlite3, threading, time
+import hashlib, hmac, os, re, secrets, sqlite3, threading, time
 from .config import CONFIG, ADMIN_USER, ADMIN_PASSWORD, DEFAULT_QUOTA_GB, SESSION_DAYS
 
 DB_PATH = CONFIG / "drivepanel.db"
@@ -89,6 +89,35 @@ def clear_auth_cache():
     _auth_cache.clear()
 
 
+# --- codigo de recuperacion ---------------------------------------------------
+# Cada cuenta tiene un codigo (XXXX-XXXX-XXXX) que se ve una sola vez. Con el se puede
+# poner una contrasena nueva y saber el usuario aunque se hayan olvidado los dos, sin
+# servidor de correo. Es largo y al azar (60 bits), asi que se guarda su SHA-256: no se
+# puede leer, pero si buscar la cuenta solo con el codigo.
+REC_ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I para no confundirse
+
+
+def _rec_norm(code: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", (code or "").upper())
+
+
+def rec_hash(code: str) -> str:
+    return hashlib.sha256(("recovery:" + _rec_norm(code)).encode()).hexdigest()
+
+
+def new_recovery(uid: int) -> str:
+    """Crea un codigo nuevo para la cuenta (el anterior deja de valer) y lo devuelve."""
+    raw = "".join(secrets.choice(REC_ALPHA) for _ in range(12))
+    run("UPDATE users SET recovery=? WHERE id=?", rec_hash(raw), uid)
+    return "-".join(raw[i:i + 4] for i in (0, 4, 8))
+
+
+def user_by_recovery(code: str):
+    if len(_rec_norm(code)) != 12:
+        return None
+    return q1("SELECT * FROM users WHERE recovery=?", rec_hash(code))
+
+
 # --- sesiones ----------------------------------------------------------------
 def new_session(user_id: int) -> str:
     tok = secrets.token_urlsafe(32)
@@ -111,6 +140,8 @@ def init():
         run("ALTER TABLE shares ADD COLUMN expires REAL")
     if "lang" not in {r["name"] for r in q("PRAGMA table_info(users)")}:
         run("ALTER TABLE users ADD COLUMN lang TEXT")  # idioma elegido (es, en...); vacio = el del navegador
+    if "recovery" not in {r["name"] for r in q("PRAGMA table_info(users)")}:
+        run("ALTER TABLE users ADD COLUMN recovery TEXT")  # SHA-256 del codigo de recuperacion
     run("DELETE FROM sessions WHERE expires<?", time.time())
     run("DELETE FROM activity WHERE at<?", time.time() - 180 * 86400)  # se guarda medio ano
     if ADMIN_USER and ADMIN_PASSWORD and not q1("SELECT id FROM users WHERE username=?", ADMIN_USER):
