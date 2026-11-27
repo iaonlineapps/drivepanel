@@ -260,6 +260,8 @@ function paintVersion() {
   const app = (navigator.userAgent.match(/DrivePanelAndroid\/([\d.]+)/) || [])[1];
   const txt = `DrivePanel ${S.me.version || '?'}` + (app ? ` · ${t('App Android')} ${app}` : '');
   $('#sideVersion').textContent = txt; $('#menuVersion').textContent = txt.replace(' · ', '\n');
+  $('#sideMadeby').innerHTML = `💛 ${t('Proyecto sin ánimo de lucro, gratis y sin anuncios')} · 🤖 ${t('App creada con ayuda de inteligencia artificial (IA)')} · `
+    + `© 2026 <a href="https://github.com/iaonlineapps/drivepanel" target="_blank" rel="noopener" translate="no">IA Online Apps</a> · ${t('Uso personal no comercial')}`;
 }
 /* ---------- novedades: tras actualizar el servidor se enseñan una vez (navegador y app) ---------- */
 const verNewer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };

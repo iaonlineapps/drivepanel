@@ -397,6 +397,8 @@ table.list{width:100%;border-collapse:collapse}
 
 .side-version{padding:10px 6px 2px;font-size:11px;color:var(--muted);text-align:center;opacity:.85;cursor:pointer;border-radius:8px}
 .side-version:hover{color:var(--accent);opacity:1}
+.side-madeby{padding:2px 8px 8px;font-size:10.5px;line-height:1.5;color:var(--muted);text-align:center;opacity:.75}
+.side-madeby a{color:inherit}
 .menu-version{font-size:12px;color:var(--muted);text-align:center;white-space:pre-line;line-height:1.5}
 
 

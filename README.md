@@ -453,3 +453,9 @@ la licencia):
 Si quieres usarlo con fines comerciales, escribe al autor por GitHub.
 
 Copyright (c) 2026 [IA Online Apps](https://github.com/iaonlineapps)
+
+---
+
+💛 Proyecto sin ánimo de lucro, gratis y sin anuncios · 🤖 App creada con ayuda de inteligencia artificial (IA) · © 2026 [IA Online Apps](https://github.com/iaonlineapps) · Uso personal no comercial
+
+💛 Non-profit project, free and ad-free · 🤖 App made with the help of artificial intelligence (AI) · © 2026 [IA Online Apps](https://github.com/iaonlineapps) · Personal, non-commercial use
